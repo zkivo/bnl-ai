@@ -3,7 +3,8 @@ Tools and AI software for the Behavioural Neuroscience Laboratory in Lund Univer
 
 ## transfer learning or fine tuning from superanimal-topviewmouse
 
-Add to the configuration file the bodyparts in this order:
+Add to the configuration file the bodyparts in this order (source https://zenodo.org/records/10618947) :
+
 bodyparts:
 - nose
 - left_ear
