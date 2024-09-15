@@ -1,4 +1,3 @@
-import deeplabcut as dlc
 import tempfile
 import sys
 import os
@@ -39,6 +38,8 @@ def main():
         print(f"Error: The regex pattern '{regex}' is not valid.")
         sys.exit(1)
 
+    print(bcolors.OKGREEN, "---- Part 1 ----", bcolors.ENDC)
+
     temp_dir = tempfile.gettempdir()
 
     print("temp_dir: ", temp_dir)
@@ -57,14 +58,29 @@ def main():
         print(bcolors.FAIL + f"No videos found in '{video_dir}' with the regex pattern '{regex}'." + bcolors.ENDC)
         sys.exit(1)
 
-    config_file = dlc.create_new_project('-', '-', videos, 
-                                         working_directory=temp_dir, 
+    print(bcolors.OKGREEN, "---- Part 2 ----", bcolors.ENDC)
+    import deeplabcut as dlc
+
+    print("creating new project...")
+    config_file = dlc.create_new_project('-', '-', videos,
+                                         working_directory=temp_dir,
                                          copy_videos=False, multianimal=False)
-    
-    print(os.path.dirname(config_file))
 
-    dlc.extract_frames(config_file, 'automatic', 'kmeans', crop=False, userfeedback=False)
+    print("path of config file:", os.path.dirname(config_file))
+    print("extracting frames...")
 
+    try:
+        dlc.extract_frames(config_file, 'automatic', 'kmeans', crop=False, userfeedback=False)
+    except ValueError as e:
+        print(bcolors.FAIL + "Error: ", e, bcolors.ENDC)
+        if str(e) == "__len__() should return >= 0":
+            print("fixing corrupted videos with ffmpeg...")
+            # fix corrupted video with ffmpeg
+
+        sys.exit(1)
+    except Exception as e:
+        print(bcolors.FAIL + "Error: ", e, bcolors.ENDC)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
