@@ -1,3 +1,4 @@
+import deeplabcut as dlc
 import tempfile
 import sys
 import os
@@ -51,6 +52,19 @@ def main():
                 videos.append(os.path.join(dirpath, file))
 
     print("videos: ", videos)
+
+    if len(videos) == 0:
+        print(bcolors.FAIL + f"No videos found in '{video_dir}' with the regex pattern '{regex}'." + bcolors.ENDC)
+        sys.exit(1)
+
+    config_file = dlc.create_new_project('-', '-', videos, 
+                                         working_directory=temp_dir, 
+                                         copy_videos=False, multianimal=False)
+    
+    print(os.path.dirname(config_file))
+
+    dlc.extract_frames(config_file, 'automatic', 'kmeans', crop=False, userfeedback=False)
+
 
 if __name__ == "__main__":
     main()
