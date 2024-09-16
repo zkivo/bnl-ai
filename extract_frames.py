@@ -69,18 +69,23 @@ def main():
     print("path of config file:", os.path.dirname(config_file))
     print("extracting frames...")
 
-    try:
-        dlc.extract_frames(config_file, 'automatic', 'kmeans', crop=False, userfeedback=False)
-    except ValueError as e:
-        print(bcolors.FAIL + "Error: ", e, bcolors.ENDC)
-        if str(e) == "__len__() should return >= 0":
-            print("fixing corrupted videos with ffmpeg...")
-            # fix corrupted video with ffmpeg
+    # import ffmpeg
+    # stream = ffmpeg.input(videos[0])
+    # stream = ffmpeg.output(stream, videos[0] + "2.mkv")
+    # ffmpeg.run(stream)
 
-        sys.exit(1)
-    except Exception as e:
-        print(bcolors.FAIL + "Error: ", e, bcolors.ENDC)
-        sys.exit(1)
+    # try:
+    dlc.extract_frames(config_file, 'automatic', 'kmeans', crop=False, userfeedback=False)
+    # except ValueError as e:
+    #     print(bcolors.FAIL + "Error: ", e, bcolors.ENDC)
+    #     if str(e) == "__len__() should return >= 0":
+    #         print("fixing corrupted videos with ffmpeg...")
+    #         # fix corrupted video with ffmpeg
+
+    #     sys.exit(1)
+    # except Exception as e:
+    #     print(bcolors.FAIL + "Error: ", e, bcolors.ENDC)
+    #     sys.exit(1)
 
 if __name__ == "__main__":
     main()
