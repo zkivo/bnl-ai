@@ -1,91 +1,25 @@
-import tempfile
-import sys
+import deeplabcut as dlc
 import os
-import re
+import sys
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+# TODO: Add skip/skip all functionality
 
-def main():
-    # Check if two arguments were provided
-    if len(sys.argv) < 3:
-        print(bcolors.FAIL + "Error: Two arguments are required.\n" + bcolors.ENDC + \
-              "1) dir path which contains the videos where to extract the frames.\n" \
-              "This script will recursively search into the dirs.\n" \
-              "2) Regex patter for matching the video names.")
-        sys.exit(1)
+if len(sys.argv) != 2:
+    print("Usage: python extract_frames.py <directory_path>")
+    sys.exit(1)
 
-    # Get the arguments
-    video_dir  = sys.argv[1]
-    regex = sys.argv[2]
+# Parse arguments
+directory_path = sys.argv[1]
 
-    if not os.path.isdir(video_dir):
-        print(f"Error: The path '{video_dir}' is not a dir.")
-        sys.exit(1)
+if not os.path.isdir(directory_path):
+    print(f"Error: Directory '{directory_path}' does not exist.")
 
-    try:
-        re.compile(regex)
-        print(f"Regex pattern '{regex}' is valid.")
-    except re.error:
-        print(f"Error: The regex pattern '{regex}' is not valid.")
-        sys.exit(1)
+print(f"Directory '{directory_path}' exists.")
 
-    print(bcolors.OKGREEN, "---- Part 1 ----", bcolors.ENDC)
+if not directory_path.endswith(os.path.sep):
+    directory_path += os.path.sep
 
-    temp_dir = tempfile.gettempdir()
+# Combine the directory path and file name
+config_path = directory_path + '\config.yaml'
 
-    print("temp_dir: ", temp_dir)
-
-    videos = []
-
-    # Walk through the directory recursively
-    for dirpath, dirnames, files in os.walk(video_dir):
-        for file in files:
-            if re.search(regex, file):
-                videos.append(os.path.join(dirpath, file))
-
-    print("videos: ", videos)
-
-    if len(videos) == 0:
-        print(bcolors.FAIL + f"No videos found in '{video_dir}' with the regex pattern '{regex}'." + bcolors.ENDC)
-        sys.exit(1)
-
-    print(bcolors.OKGREEN, "---- Part 2 ----", bcolors.ENDC)
-    import deeplabcut as dlc
-
-    print("creating new project...")
-    config_file = dlc.create_new_project('-', '-', videos,
-                                         working_directory=temp_dir,
-                                         copy_videos=False, multianimal=False)
-
-    print("path of config file:", os.path.dirname(config_file))
-    print("extracting frames...")
-
-    # import ffmpeg
-    # stream = ffmpeg.input(videos[0])
-    # stream = ffmpeg.output(stream, videos[0] + "2.mkv")
-    # ffmpeg.run(stream)
-
-    # try:
-    dlc.extract_frames(config_file, 'automatic', 'kmeans', crop=False, userfeedback=False)
-    # except ValueError as e:
-    #     print(bcolors.FAIL + "Error: ", e, bcolors.ENDC)
-    #     if str(e) == "__len__() should return >= 0":
-    #         print("fixing corrupted videos with ffmpeg...")
-    #         # fix corrupted video with ffmpeg
-
-    #     sys.exit(1)
-    # except Exception as e:
-    #     print(bcolors.FAIL + "Error: ", e, bcolors.ENDC)
-    #     sys.exit(1)
-
-if __name__ == "__main__":
-    main()
+dlc.extract_frames(config_path, mode='automatic', algo='kmeans', userfeedback=False, crop=False)
