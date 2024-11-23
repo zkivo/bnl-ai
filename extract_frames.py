@@ -1,71 +1,120 @@
-import deeplabcut as dlc
-import time
-import threading
-import os
 import sys
+import os
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage.feature import hog
+from skimage.io import imread
+from sklearn.cluster import KMeans
 
-# TODO: Add skip/skip all functionality
 
-if len(sys.argv) != 2:
-    print("Usage: python extract_frames.py <directory_path>")
-    sys.exit(1)
+def extract_color_histogram(frame):
+    """
+    This function calculates the color histogram for a given frame.
+    The histogram for each color has 8 bins, that means that
+    the output will have 8+8+8=24 features.
+    This is usuful when the difference between frames is mostly
+    seen as color differences.
+    """
+    frame = cv2.resize(frame, (128, 128))  # Resize for consistency
+    hist = cv2.calcHist([frame], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+    return cv2.normalize(hist, hist).flatten()
 
-# Parse arguments
-directory_path = sys.argv[1]
 
-if not directory_path.endswith(os.path.sep):
-    directory_path += os.path.sep
+def extract_hog_features(frame):
+    img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    img_resized = cv2.resize(img, (128, 128))
+    features, _ = hog(img_resized, orientations=9, pixels_per_cell=(8, 8),
+                      cells_per_block=(2, 2), visualize=True)
+    return features
 
-if not os.path.isdir(directory_path):
-    print(f"Error: Directory '{directory_path}' does not exist.")
 
-print(f"Directory '{directory_path}' exists.")
+def extract_frames(video_files, folder):
+    # Check if the folder exists
+    if not os.path.isdir(folder):
+        print(f"Error: The folder '{folder}' does not exist.")
+        sys.exit(1)
 
-config_path = directory_path + 'config.yaml'
-videos_path = directory_path + 'videos'
-labeled_data_path = directory_path + 'labeled-data'
-video_filenames = [f for f in os.listdir(videos_path) if os.path.isfile(os.path.join(videos_path, f))]
-skip_all = False
+    # Check if video files exist
+    for video_file in video_files:
+        if not os.path.isfile(video_file):
+            print(f"Error: The video file '{video_file}' does not exist.")
+            sys.exit(1)
 
-user_choice = None
+    # Process each video file
+    for video_file in video_files:
+        print(f"Processing video: {video_file}")
+        cap = cv2.VideoCapture(video_file)
 
-for filename in video_filenames:
-    dir_path = os.path.join(labeled_data_path, os.path.basename(filename))
-    if os.path.isdir(dir_path):
-        if skip_all:
-            print(f"Skipping {filename} (skip_all is active)")
+        if not cap.isOpened():
+            print(f"Error: Could not open video '{video_file}'.")
             continue
 
-        def user_input():
-            nonlocal user_choice
-            user_choice = input(f"Directory '{dir_path}' exists. Skip this? (Y/n/(a)ll): ").strip().lower()
+        print("Extracting features with color histogram...")
+        frame_count = 0
+        frame_features = []
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            if frame_count % 30 == 0:
+                print(f"frame: {frame_count}", end="\r", flush=True)  # Overwrites the same line and forces flush
+            frame_features.append(extract_color_histogram(frame))
+            frame_count += 1
+        cap.release()
 
-        thread = threading.Thread(target=user_input)
-        thread.start()
+        frame_features = np.array(frame_features)   
 
-        thread.join(timeout=10)  # Wait for user input or timeout
+        print("Clustering with K-means...")
+        # Define the number of clusters (e.g., 25)
+        n_clusters = 25
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        labels = kmeans.fit_predict(frame_features)
 
-        if thread.is_alive():
-            print("\nNo response. Skipping automatically.")
-            thread.join()  # Ensure the thread exits cleanly
+        # Select the frame closest to the centroid of each cluster
+        selected_frames = []
+        for cluster_id in range(n_clusters):
+            cluster_indices = np.where(labels == cluster_id)[0]
+            cluster_features = frame_features[cluster_indices]
+            centroid = kmeans.cluster_centers_[cluster_id]
+            distances = np.linalg.norm(cluster_features - centroid, axis=1)
+            closest_frame_index = cluster_indices[np.argmin(distances)]
+            selected_frames.append(closest_frame_index)
+
+        cap = cv2.VideoCapture(video_file)
+
+        if not cap.isOpened():
+            print(f"Error: Could not open video '{video_file}'.")
             continue
 
-        if user_choice == "y" or user_choice == "yes":
-            print(f"Skipping {filename}.")
-            continue
-        elif user_choice == "a" or user_choice == "all":
-            print("Skipping all future directories.")
-            skip_all = True
-            continue
-        elif user_choice == "n" or user_choice == "no":
-            print(f"Processing {filename}.")
-            pass  # Do your operation here
-        else:
-            print("Invalid response. Skipping this directory.")
-            continue
-    else:
-        print(f"Directory '{dir_path}' does not exist. Performing operation.")
-        pass  # Do your operation here
+        basename = os.path.basename(video_file)
+        root_name, ext = os.path.splitext(basename)
 
+        frames_folder = os.path.join(folder, root_name)
+        if not os.path.exists(frames_folder):
+            os.mkdir(frames_folder)
 
-dlc.extract_frames(config_path, mode='automatic', algo='kmeans', userfeedback=False, crop=False)
+        print(f"Writing frames to folder {frames_folder}...")
+        frame_count = 0
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            if frame_count % 30 == 0:
+                print(f"frame: {frame_count}", end="\r", flush=True)  # Overwrites the same line and forces flush
+            if frame_count in selected_frames:
+                frame_path = os.path.join(frames_folder, f"{frame_count}.jpg")
+                cv2.imwrite(frame_path, frame)
+            frame_count += 1
+        cap.release()
+
+if __name__ == "__main__":
+    # Parse command-line arguments
+    if len(sys.argv) < 3:
+        print("Usage: python script.py <video_file1> <video_file2> ... <out_folder>")
+        sys.exit(1)
+
+    video_files = sys.argv[1:-1]
+    out_folder = sys.argv[-1]
+
+    extract_frames(video_files, out_folder)
