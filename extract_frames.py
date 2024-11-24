@@ -29,10 +29,10 @@ def extract_hog_features(frame):
     return features
 
 
-def extract_frames(video_files, folder):
-    # Check if the folder exists
-    if not os.path.isdir(folder):
-        print(f"Error: The folder '{folder}' does not exist.")
+def extract_frames(video_files, out_folder, n_clusters=25):
+    # Check if the out_folder exists
+    if not os.path.isdir(out_folder):
+        print(f"Error: The output folder '{out_folder}' does not exist.")
         sys.exit(1)
 
     # Check if video files exist
@@ -67,7 +67,6 @@ def extract_frames(video_files, folder):
 
         print("Clustering with K-means...")
         # Define the number of clusters (e.g., 25)
-        n_clusters = 25
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         labels = kmeans.fit_predict(frame_features)
 
@@ -90,22 +89,22 @@ def extract_frames(video_files, folder):
         basename = os.path.basename(video_file)
         root_name, ext = os.path.splitext(basename)
 
-        frames_folder = os.path.join(folder, root_name)
+        frames_folder = os.path.join(out_folder, root_name)
         if not os.path.exists(frames_folder):
             os.mkdir(frames_folder)
 
         print(f"Writing frames to folder {frames_folder}...")
-        frame_count = 0
+        frame_number = 1
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
-            if frame_count % 30 == 0:
-                print(f"frame: {frame_count}", end="\r", flush=True)  # Overwrites the same line and forces flush
-            if frame_count in selected_frames:
-                frame_path = os.path.join(frames_folder, f"{frame_count}.jpg")
+            if frame_number % 30 == 0:
+                print(f"frame: {frame_number}", end="\r", flush=True)  # Overwrites the same line and forces flush
+            if frame_number in selected_frames:
+                frame_path = os.path.join(frames_folder, f"{root_name}-{frame_number}.png")
                 cv2.imwrite(frame_path, frame)
-            frame_count += 1
+            frame_number += 1
         cap.release()
 
 if __name__ == "__main__":
