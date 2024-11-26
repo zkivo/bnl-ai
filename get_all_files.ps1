@@ -20,6 +20,7 @@ $FileList = @()
 
 # Recursively gather all files from the subfolders
 $FileList = Get-ChildItem -Path $RootFolder -Recurse -File | ForEach-Object { $_.FullName }
+# $FileList = $FileList -replace ' ', '\\';
 
 # Check if there are any files
 if ($FileList.Count -eq 0) {
@@ -30,9 +31,10 @@ if ($FileList.Count -eq 0) {
 # Convert the file list to a single string separated by spaces
 $FileListString = $FileList -join " "
 
+return $FileListString
 # Write-Host $FileListString
 
 # Execute the 'extract_frames' program with the file list as an argument
-Write-Host "Executing 'extract_frames' with the file list..."
-$Command = "python extract_frames.py $FileListString `"C:\Users\marco\Desktop\Extracted Frames`""
-Invoke-Expression $Command
+# Write-Host "Executing 'extract_frames' with the file list..."
+# $Command = "python extract_frames.py $FileListString `"C:\Users\user\Desktop\Extracted Frames`""
+# Invoke-Expression $Command
