@@ -1,37 +1,230 @@
 import sys
 import os
 import re
-import cv2
-from termcolor import colored
-import numpy as np
-import matplotlib.pyplot as plt
-from skimage.feature import hog
-from skimage.io import imread
-from sklearn.cluster import KMeans
-from pathlib import Path
 import argparse
+import cv2
+import numpy as np
+import random
+from sklearn.cluster import KMeans
+from termcolor import colored
+from pathlib import Path
 from collections import defaultdict
 
-
-def extract_color_histogram(frame):
+def contours_extraction(video_paths, 
+                        output_folder,
+                        n_clusters=50, 
+                        warm_up_frames=100, 
+                        show_visuals=True):
     """
-    This function calculates the color histogram for a given frame.
-    The histogram for each color has 8 bins, that means that
-    the output will have 8+8+8=24 features.
-    This is usuful when the difference between frames is mostly
-    seen as color differences.
+    Extracts contours from multiple videos and applies 
+    K-Means clustering to select representative frames.
+    
+    Parameters
+    ----------
+    video_paths : list of str
+        List of paths to video files from different cameras
+    output_folder : str
+        Folder to save the selected frames
+    n_clusters : int, optional
+        Number of clusters for KMeans clustering, by default 50
+    warm_up_frames : int, optional
+        Number of frames to train the background model, by default 100
+    show_visuals : bool, optional
+        Whether to show visualizations, by default True
     """
-    frame = cv2.resize(frame, (128, 128))  # Resize for consistency
-    hist = cv2.calcHist([frame], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
-    return cv2.normalize(hist, hist).flatten()
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    video_paths.sort()  # Sort video paths for consistency
+
+    # Initialize background subtractors for each camera
+    background_subtractors = [cv2.createBackgroundSubtractorMOG2() for _ in video_paths]
+
+    # Open video captures for all cameras
+    caps = [cv2.VideoCapture(video_path) for video_path in video_paths]
+
+    # Train background model with initial frames (warm-up period)
+    print(f"Training background models with first {warm_up_frames} frames ...")
+    for frame_idx in range(warm_up_frames):
+        for cap, back_sub in zip(caps, background_subtractors):
+            ret, frame = cap.read()
+            if not ret:
+                continue
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            back_sub.apply(gray_frame)  # Update the background model
+
+    print("Background models trained. Starting feature extraction...")
+
+    # Extract features for all remaining frames
+    frame_features = []
+    end_video = False
+    while not end_video:
+        if frame_idx > 500:
+            break
+        combined_features = []
+        if frame_idx % 30 == 0:
+            print(f"frame: {frame_idx}", end="\r", flush=True)
+        for cam_idx, (cap, back_sub) in enumerate(zip(caps, background_subtractors)):
+            ret, frame = cap.read()
+            if not ret:
+                end_video = True
+                continue
+            # Apply background subtraction for this camera
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            fg_mask = back_sub.apply(gray_frame)
+
+            # Apply dilation to make the foreground mask larger
+            kernel = np.ones((3, 3), np.uint8)
+            dilated_mask = cv2.dilate(fg_mask, kernel, iterations=3)
+
+            # breakpoint()
+            # Visualize background subtraction result
+            if show_visuals and frame_idx % 100 == 0:  # Show visuals every 100 frames
+                cv2.imshow(f"Bsckground Mask - Camera {cam_idx}", back_sub.getBackgroundImage())
+                cv2.imshow(f"Dilatated Mask - Camera {cam_idx}", dilated_mask)
+                # cv2.imshow(f"Foreground Mask - Camera {cam_idx}", fg_mask)
+                # cv2.imshow(f"Original Frame - Camera {cam_idx}", gray_frame)
+                cv2.waitKey(1)  # Wait for 100ms
+
+            # Find contours of the foreground (mouse)
+            contours, _ = cv2.findContours(dilated_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contours:
+                # Use the largest contour (assume it's the mouse)
+                largest_contour = max(contours, key=cv2.contourArea)
+                # Apply convex hull for a more inclusive contour
+                hull = cv2.convexHull(largest_contour)
+                # Extract features: area, perimeter, centroid, bounding box
+                area = cv2.contourArea(hull)
+                perimeter = cv2.arcLength(largest_contour, True)
+                moments = cv2.moments(largest_contour)
+                centroid_x = moments['m10'] / moments['m00'] if moments['m00'] != 0 else 0
+                centroid_y = moments['m01'] / moments['m00'] if moments['m00'] != 0 else 0
+                bounding_box = cv2.boundingRect(largest_contour)
+
+                # Draw bounding box and centroid on the frame for visualization
+                if show_visuals and frame_idx % 100 == 0:
+                    cv2.rectangle(frame, (bounding_box[0], bounding_box[1]),
+                                  (bounding_box[0] + bounding_box[2], bounding_box[1] + bounding_box[3]),
+                                  (0, 255, 0), 2)
+                    cv2.circle(frame, (int(centroid_x), int(centroid_y)), 5, (255, 0, 0), -1)
+                    cv2.imshow(f"Processed Frame - Camera {cam_idx}", frame)
+                    cv2.waitKey(1)
+
+                # Create a feature vector
+                feature_vector = [area, perimeter, centroid_x, centroid_y, *bounding_box]
+                combined_features.append(feature_vector)
+
+        # Aggregate features from all cameras
+        if len(combined_features) == len(caps):  # Ensure all cameras have data
+            aggregated_features = np.mean(combined_features, axis=0)
+            frame_features.append((frame_idx, aggregated_features))
+        frame_idx += 1
+
+    # Prepare features for clustering
+    frame_indices, feature_vectors = zip(*frame_features)
+    feature_matrix = np.array(feature_vectors)
+
+    # Perform clustering
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    labels = kmeans.fit_predict(feature_matrix)
+
+    # Select the frame closest to the centroid of each cluster
+    selected_frames = []
+    for cluster_id in range(n_clusters):
+        cluster_indices = np.where(labels == cluster_id)[0]
+        cluster_features = feature_matrix[cluster_indices]
+        centroid = kmeans.cluster_centers_[cluster_id]
+        distances = np.linalg.norm(cluster_features - centroid, axis=1)
+        closest_frame_index = cluster_indices[np.argmin(distances)]
+        selected_frames.append(closest_frame_index)
+
+    # Release all captures
+    for cap in caps:
+        cap.release()
+
+    # Re-open video captures for all cameras
+    # Save the selected frames into the output folder
+    caps = [cv2.VideoCapture(video_path) for video_path in video_paths]
+    j = 0
+    for cap in caps:
+        i = 0
+        basename = os.path.basename(video_paths[j])
+        root_name, ext = os.path.splitext(basename)
+        frames_folder = os.path.join(output_folder, root_name)
+        if not os.path.exists(frames_folder):
+            os.mkdir(frames_folder)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            if i in selected_frames:
+                output_path = os.path.join(frames_folder, f"{root_name}-{i}.png")
+                cv2.imwrite(output_path, frame)
+            i += 1
+        j += 1
+
+    print(f"Extracted frames saved in {output_folder}")
+    cv2.destroyAllWindows()
 
 
-def extract_hog_features(frame):
-    img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    img_resized = cv2.resize(img, (128, 128))
-    features, _ = hog(img_resized, orientations=9, pixels_per_cell=(8, 8),
-                      cells_per_block=(2, 2), visualize=True)
-    return features
+def uniform_extraction(video_paths, output_dir, n_frames, random = True):
+    """
+    Extracts n_frames from each video in video_paths with a uniform 
+    random distribution or linearly spaced (if random = false).
+
+    Args:
+        video_paths (list): List of paths to video files.
+        output_dir (str): Directory where extracted frames will be saved.
+        n_frames (int): Number of frames to extract from each video.
+        random (bool): Whether to sample frames randomly or linearly.
+    """
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    print("Counting total frames...")
+    cap = cv2.VideoCapture(video_paths[0])
+    total_frames = 0
+    while True:
+        if total_frames % 30 == 0:
+            print(f"total_frames: {total_frames}", end="\r", flush=True)
+        ret, frame = cap.read()
+        if not ret:
+            break
+        total_frames += 1
+    cap.release()
+
+    # Uniformly sample `n_frames` frame indices
+    if random:
+        frame_indices = sorted(random.sample(range(total_frames), n_frames))
+    else:
+        frame_indices = np.linspace(0, total_frames - 1, n_frames, dtype=int)
+    
+    print("Frame indices to extract:", frame_indices)
+
+    # Process each video
+    j = 0
+    for video_path in video_paths:
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video file: {video_path}")
+        i = 0
+        basename = os.path.basename(video_paths[j])
+        root_name, ext = os.path.splitext(basename)
+        frames_folder = os.path.join(output_dir, root_name)
+        if not os.path.exists(frames_folder):
+            os.mkdir(frames_folder)
+        while True:
+            if i % 30 == 0:
+                print(f"frames: {i}", end="\r", flush=True)
+            ret, frame = cap.read()
+            if not ret:
+                break
+            if i in frame_indices:
+                output_path = os.path.join(frames_folder, f"{root_name}-{i}.png")
+                cv2.imwrite(output_path, frame)
+            i += 1
+        cap.release()
+        j += 1
 
 def group_videos_by_regex(video_paths, group_by):
     # Create a dictionary to store grouped videos
@@ -78,8 +271,8 @@ def extract_frames(video_list, output_dir, method, n_frames, group_by=None):
         sys.exit(1)
     
     # Check `method` is one of the allowed strings
-    if method not in ['linear', 'uniform', 'kmeans']:
-        print(colored("Error: 'method' must be one of ['linear', 'uniform', 'kmeans'].", "red"))
+    if method not in ['linear', 'uniform', 'contours']:
+        print(colored("Error: 'method' must be one of ['linear', 'uniform', 'contours'].", "red"))
         sys.exit(1)
     
     # Check `n_frames` is a positive integer
@@ -108,79 +301,19 @@ def extract_frames(video_list, output_dir, method, n_frames, group_by=None):
     if group_by is not None:
         grouped_videos = group_videos_by_regex(video_list, group_by)
         print(colored(f"Grouped videos based on \"{group_by}\" pattern.", "green"))
-        # for i, group in enumerate(grouped_videos):
-        #     print(colored(f"Group {i + 1}:", "green"), group)
-        # print()
     else:
         # No grouping, treat each video independently
         grouped_videos = [[path] for path in video_list]
 
-    exit()
+    for i, group in enumerate(grouped_videos):
+        print(colored(f"Group {i + 1}:", "green"), group)
 
-    for video_file in video_list:
-        print(f"Processing video: {video_file}")
-        cap = cv2.VideoCapture(video_file)
-
-        if not cap.isOpened():
-            print(f"Error: Could not open video '{video_file}'.")
-            continue
-
-        print("Extracting features with color histogram...")
-        frame_count = 0
-        frame_features = []
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            if frame_count % 30 == 0:
-                print(f"frame: {frame_count}", end="\r", flush=True)  # Overwrites the same line and forces flush
-            frame_features.append(extract_color_histogram(frame))
-            frame_count += 1
-        cap.release()
-
-        frame_features = np.array(frame_features)   
-
-        print("Clustering with K-means...")
-        # Define the number of clusters (e.g., 25)
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-        labels = kmeans.fit_predict(frame_features)
-
-        # Select the frame closest to the centroid of each cluster
-        selected_frames = []
-        for cluster_id in range(n_clusters):
-            cluster_indices = np.where(labels == cluster_id)[0]
-            cluster_features = frame_features[cluster_indices]
-            centroid = kmeans.cluster_centers_[cluster_id]
-            distances = np.linalg.norm(cluster_features - centroid, axis=1)
-            closest_frame_index = cluster_indices[np.argmin(distances)]
-            selected_frames.append(closest_frame_index)
-
-        cap = cv2.VideoCapture(video_file)
-
-        if not cap.isOpened():
-            print(f"Error: Could not open video '{video_file}'.")
-            continue
-
-        basename = os.path.basename(video_file)
-        root_name, ext = os.path.splitext(basename)
-
-        frames_folder = os.path.join(out_folder, root_name)
-        if not os.path.exists(frames_folder):
-            os.mkdir(frames_folder)
-
-        print(f"Writing frames to folder {frames_folder}...")
-        frame_number = 1
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            if frame_number % 30 == 0:
-                print(f"frame: {frame_number}", end="\r", flush=True)  # Overwrites the same line and forces flush
-            if frame_number in selected_frames:
-                frame_path = os.path.join(frames_folder, f"{root_name}-{frame_number}.png")
-                cv2.imwrite(frame_path, frame)
-            frame_number += 1
-        cap.release()
+        if method == "contours":
+            contours_extraction(group, output_dir, n_frames)
+        elif method == "uniform":
+            uniform_extraction(group, output_dir, n_frames)
+        elif method == "linear":
+            uniform_extraction(group, output_dir, n_frames, random = False)
 
 
 def parse_arguments():
@@ -194,7 +327,7 @@ def parse_arguments():
         - `method`: The method to use for extracting frames, with options:
             - `linear`: Extract frames evenly spaced across the video duration.
             - `uniform`: Extract frames such that the time interval between frames is constant.
-            - `kmeans`: Use clustering to select frames that represent key moments in the video.
+            - `contours`: Use clustering with countours extraction technique to select frames that represent key moments in the video.
         - `n-frames`: Total number of frames to extract from each video.
         - `group-by`: A regex pattern specifying how to group videos recorded simultaneously.
         - `recursive`: Whether to search directories recursively for video files.
@@ -233,12 +366,12 @@ def parse_arguments():
     
     parser.add_argument(
         "-m", "--method",
-        choices=["linear", "uniform", "kmeans"],
+        choices=["linear", "uniform", "contours"],
         default="linear",
         help="Method for extracting frames:\n"
             "  - `linear`: Extract frames evenly spaced across the video.\n"
             "  - `uniform`: Extract frames randomly with uniform distribution.\n"
-            "  - `kmeans`: Use clustering to select representative frames.\n"
+            "  - `contours`: Use clustering with contours extraction to select representative frames.\n"
             "Default is 'linear'."
     )
     
@@ -274,7 +407,7 @@ def parse_arguments():
         required=False,
         help=(
             "A regex pattern to specify how to group videos recorded simultaneously (e.g., different camera angles). "
-            "This is helpful when using 'kmeans' or 'uniform' methods, where grouped videos are treated as a single entity "
+            "This is helpful when using 'contours' or 'uniform' methods, where grouped videos are treated as a single entity "
             "for frame extraction. If not provided, each video is treated individually."
         ),
     )
