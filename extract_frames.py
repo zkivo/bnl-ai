@@ -374,8 +374,11 @@ def extract_frames(video_list, output_dir, method, n_frames, time_interval, grou
         elif method == "uniform":
             uniform_extraction(group, output_dir, n_frames)
         elif method == "linear":
-            for video_path in group:
-                linear_extraction(video_path, output_dir)
+            if n_frames is not None:
+                uniform_extraction(group, output_dir, n_frames, random=False)
+            else:
+                for video_path in group:
+                    linear_extraction(video_path, output_dir, time_interval)
 
 
 def parse_arguments():
@@ -546,4 +549,4 @@ if __name__ == "__main__":
     if args.group_by is None:
         print(colored("Warning: 'group_by' is not specified. Processing videos individually.", "yellow"))
 
-    extract_frames(args.input, args.output_dir, args.method, args.n_frames, args.time_interval, args.group_by)
+    extract_frames(input_videos, args.output_dir, args.method, args.n_frames, args.time_interval, args.group_by)
