@@ -226,6 +226,60 @@ def uniform_extraction(video_paths, output_dir, n_frames, random = True):
         cap.release()
         j += 1
 
+def linear_extraction(video_path, output_folder, interval : float = 1000):
+    """
+    Extract frames linearly from a video file taken the distance in milliseconds.
+    Then save the frames in an output folder.
+
+    Arguments
+    -------
+
+    video_path: str
+        Path to the video file.
+    output_folder: str
+        Path to the folder where the frames will be saved.
+    interval: int
+        Interval (ms) between frames to be saved. 
+        For example, 1000 means 1 frame per second.
+
+    """
+
+    # Create the output folder if it doesn't exist
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Open the video file
+    video = cv2.VideoCapture(video_path)
+    if not video.isOpened():
+        print(f"Error: Could not open video {video_path}.")
+        return
+
+    # Get the frame rate of the video
+    fps = video.get(cv2.CAP_PROP_FPS)
+    if fps == 0:
+        print(f"Error: Could not determine the FPS of the video {video_path}.")
+        return
+
+    # milliseconds to seconds
+    interval = float(interval) / float(1000)
+    # Calculate the frame interval
+    frame_interval = int(fps * interval)
+    frame_count = 0
+    basename = os.path.basename(video_path)
+    root_name, ext = os.path.splitext(basename)
+    frames_folder = os.path.join(output_folder, root_name)
+    os.makedirs(frames_folder, exist_ok=True)
+    while True:
+        ret, frame = video.read()
+        if not ret:
+            break
+        # Save the frame if it matches the interval
+        if frame_count % frame_interval == 0:
+            output_path = os.path.join(frames_folder, f"{root_name}-{frame_count}.png")
+            cv2.imwrite(output_path, frame)
+        frame_count += 1
+    video.release()
+    print(f"Frames saved in folder {frames_folder}")
+
 def group_videos_by_regex(video_paths, group_by):
     # Create a dictionary to store grouped videos
     grouped_videos = defaultdict(list)
@@ -249,7 +303,7 @@ def group_videos_by_regex(video_paths, group_by):
     grouped_list = [group for group in grouped_videos.values()]
     return grouped_list
 
-def extract_frames(video_list, output_dir, method, n_frames, group_by=None):
+def extract_frames(video_list, output_dir, method, n_frames, time_interval, group_by=None):
 
     # -----------------------------------------------------------------
     # ------------------- Check input arguments -----------------------
@@ -276,9 +330,16 @@ def extract_frames(video_list, output_dir, method, n_frames, group_by=None):
         sys.exit(1)
     
     # Check `n_frames` is a positive integer
-    if not isinstance(n_frames, int) or n_frames <= 0:
-        print(colored("Error: 'n_frames' must be a positive integer.", "red"))
-        sys.exit(1)
+    if n_frames is not None:
+        if not isinstance(n_frames, int) or n_frames <= 0:
+            print(colored("Error: 'n_frames' must be a positive integer.", "red"))
+            sys.exit(1)
+
+    # Check `n_frames` is a positive integer
+    if time_interval is not None:
+        if not isinstance(time_interval, int) or time_interval <= 0:
+            print(colored("Error: 'time_interval' must be a positive integer.", "red"))
+            sys.exit(1)
     
     # Check `group_by` is a valid regular expression or None
     if group_by is not None:
@@ -294,7 +355,7 @@ def extract_frames(video_list, output_dir, method, n_frames, group_by=None):
 
     # -----------------------------------------------------------------
     # ------------------------ Group videos  --------------------------
-    # -----------------------------------------------------------------=
+    # -----------------------------------------------------------------
 
     
     # Group videos if group_by is provided
@@ -313,7 +374,8 @@ def extract_frames(video_list, output_dir, method, n_frames, group_by=None):
         elif method == "uniform":
             uniform_extraction(group, output_dir, n_frames)
         elif method == "linear":
-            uniform_extraction(group, output_dir, n_frames, random = False)
+            for video_path in group:
+                linear_extraction(video_path, output_dir)
 
 
 def parse_arguments():
@@ -331,6 +393,7 @@ def parse_arguments():
         - `n-frames`: Total number of frames to extract from each video.
         - `group-by`: A regex pattern specifying how to group videos recorded simultaneously.
         - `recursive`: Whether to search directories recursively for video files.
+        - `time-interval`: Time in milliseconds between frames for `linear` method.
 
     Returns:
         argparse.Namespace: An object containing the parsed arguments.
@@ -387,9 +450,20 @@ def parse_arguments():
     parser.add_argument(
         "-n", "--n-frames",
         type=positive_integer,
-        required=True,
+        required=False,
         help="Total number of frames to extract. This number "
              "must be a positive integer."
+    )
+
+    # Time interval: Optional for linear method
+    parser.add_argument(
+        "-t", "--time-interval",
+        type=positive_integer,
+        required=False,
+        help=(
+            "Time interval in milliseconds between frames. Only applicable when using the 'linear' method. "
+            "Ignored for other methods."
+        ),
     )
 
     def valid_regex(value):
@@ -446,7 +520,23 @@ def get_video_files(input_path, recursive):
 if __name__ == "__main__":
 
     args = parse_arguments()
-    print(args.input, args.recursive, args.output_dir, args.method, args.n_frames, args.group_by)
+    print(args.input, args.recursive, args.output_dir, args.method, args.n_frames, args.time_interval, args.group_by)
+
+    if args.method != "linear" and args.time_interval is not None:
+        print(colored("--time-interval is only valid when the method is 'linear'.", "red"))
+        exit(1)
+
+    if args.method != "linear" and args.n_frames is None:
+        print(colored("--n-frames is required when method is not 'linear'.", "red"))
+        exit(1)
+    
+    if args.time_interval is not None and args.n_frames is not None:
+        print(colored("--n-frames and --time-interval cannot be used together. Choose one.", "red"))
+        exit(1)
+    
+    if args.method == "linear" and args.n_frames is None and args.time_interval is None:
+        print(colored("Please insert either --n-frames or --time-interval", "red"))
+        exit(1)
 
     # Handle input videos
     input_videos = []
@@ -456,4 +546,4 @@ if __name__ == "__main__":
     if args.group_by is None:
         print(colored("Warning: 'group_by' is not specified. Processing videos individually.", "yellow"))
 
-    extract_frames(input_videos, args.output_dir, args.method, args.n_frames, args.group_by)
+    extract_frames(args.input, args.output_dir, args.method, args.n_frames, args.time_interval, args.group_by)
