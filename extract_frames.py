@@ -508,6 +508,10 @@ def get_video_files(input_path, recursive):
     if os.path.isdir(input_path):
         pattern = "**/*" if recursive else "*"
         video_files = [str(p) for p in Path(input_path).glob(pattern) if p.is_file()]
+        for video in video_files:
+            if not video.lower().endswith(('.mkv', '.mp4')):
+                print(colored(f"The file '{video}' does not end as one of the following format .mkv, .mp4", "yellow"))
+                video_files.remove(video)
         if not video_files:
             raise argparse.ArgumentTypeError(
                 f"No video files found in directory: {input_path} (recursive={recursive})"
