@@ -1,13 +1,19 @@
 # bnl-ai
 Tools and AI software for the Behavioural Neuroscience Laboratory.
 
+## Fix MKV files
+Usually the recordings are corrupted. The timestaps are *not monotonically increasing*. This causes errors in the
+processing of the file. To adjust the timestaps use the following command:
+
+```ffmpeg -fflags +genpts -i input.mkv -c:v copy -c:a copy -avoid_negative_ts make_zero output_fixed.mkv```
+
 ## Calibration example
 
-python .\extract_frames.py -i "path/to/calibration/videos" -o "path/to/root/folder/output" -m linear -t 500 
+```python .\extract_frames.py -i "path/to/calibration/videos" -o "path/to/root/folder/output" -m linear -t 500 ```
 
 ## Multicamera Contours + K-Means Extraction 
 
-python .\extract_frames.py -i "path/to/root/folder/videos" -r -o "path/to/root/folder/output" -m contours -n 50 -g "^(.*)(?=_[0-5]\.mkv)" 
+```python .\extract_frames.py -i "path/to/root/folder/videos" -r -o "path/to/root/folder/output" -m contours -n 50 -g "^(.*)(?=_[0-5]\.mkv)" ```
 
 ## Adjust Brightness
-python .\adjust_brightness.py "path/to/root/folder/frames" "path/to/root/folder/output0" 150
+```python .\adjust_brightness.py "path/to/root/folder/frames" "path/to/root/folder/output0" 150```

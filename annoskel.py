@@ -6,7 +6,7 @@ from termcolor import colored
 
 def get_image_files(input_path, recursive):
     """
-    Retrieve  files from the input path.
+    Retrieve image files from the input path.
 
     Args:
         input_path (str): Either a directory or a list of image files.
