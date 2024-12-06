@@ -37,7 +37,7 @@ if __name__ == "__main__":
     config_path = directory_path + '\config.yaml'
 
     dlc.add_new_videos(config_path, video_file_paths, 
-                       copy_videos=True,
+                       copy_videos=False,
                        extract_frames=False)
 
 

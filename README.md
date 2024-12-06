@@ -11,15 +11,17 @@ processing of the file. To adjust the timestaps use the following command:
 This code will go recursively inside the root folder and will fix all the .mkv files.
 
 Bash:
-```find /path/to/root -type f -name "*.mkv" -exec sh -c 'ffmpeg -fflags +genpts -i "$1" -c:v copy -c:a copy -avoid_negative_ts make_zero "${1%.mkv}.mp4"' _ {} \;```
+```Bash:
+find /path/to/root -type f -name "*.mkv" -exec sh -c 'ffmpeg -fflags +genpts -i "$1" -c:v copy -c:a copy -avoid_negative_ts make_zero "${1%.mkv}.mp4"' _ {} \;
+```
 
 Powershell:
 ```Powershell
-    Get-ChildItem -Path "C:\path\to\root" -Recurse -Filter "*.mkv" | ForEach-Object {
-        $inputFile = $_.FullName
-        $outputFile = [System.IO.Path]::ChangeExtension($inputFile, ".mp4")
-        ffmpeg -fflags +genpts -i "$inputFile" -c:v copy -c:a copy -avoid_negative_ts make_zero "$outputFile"
-    }
+Get-ChildItem -Path "C:\path\to\root" -Recurse -Filter "*.mkv" | ForEach-Object {
+    $inputFile = $_.FullName
+    $outputFile = [System.IO.Path]::ChangeExtension($inputFile, ".mp4")
+    ffmpeg -fflags +genpts -i "$inputFile" -c:v copy -c:a copy -avoid_negative_ts make_zero "$outputFile"
+}
 ```
 
 
