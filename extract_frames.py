@@ -157,7 +157,7 @@ def pca_analysis(original_matrix, show_visuals=True):
 def contours_extraction(video_paths, 
                         output_folder,
                         n_clusters=50, 
-                        warm_up_frames=300, 
+                        n_train_background=200, 
                         show_visuals=True):
     """
     Extracts contours from multiple videos and applies 
@@ -199,7 +199,7 @@ def contours_extraction(video_paths,
     # -------------------------------------------------------------------------
     frames = []
     print(f"Starting training background frames...")
-    for frame_idx in range(warm_up_frames):
+    for frame_idx in range(n_train_background):
         for cap, back_sub in zip(caps, background_subtractors):
             ret, frame = cap.read()
             if not ret:
@@ -211,7 +211,7 @@ def contours_extraction(video_paths,
                 if show_visuals:
                     frames.append(back_sub.getBackgroundImage())
         if frame_idx % 10 == 0:
-            print(f"frame: {frame_idx} / {warm_up_frames}", end="\r", flush=True)
+            print(f"frame: {frame_idx} / {n_train_background}", end="\r", flush=True)
             if show_visuals:
                 display_frames_in_grid(frames, window_name="Background Frames")
         else:
@@ -221,9 +221,8 @@ def contours_extraction(video_paths,
     # cv2.destroyAllWindows()
 
     for cap in caps:
-        cap.release()
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
-    caps = [cv2.VideoCapture(video_path) for video_path in video_paths]
     # -------------------------------------------------------------------------
     # Extract features from each frame ---------------------------------------
     # -------------------------------------------------------------------------
@@ -232,7 +231,7 @@ def contours_extraction(video_paths,
     end_video = False
     frame_idx = 0
     while not end_video:
-        if frame_idx > 500:
+        if frame_idx > 300:
             break
         combined_features = []
         if frame_idx % 30 == 0:
@@ -321,12 +320,11 @@ def contours_extraction(video_paths,
 
     # Release all captures
     for cap in caps:
-        cap.release()
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     # -------------------------------------------------------------------------
     # Save selected frames ---------------------------------------------------
     # -------------------------------------------------------------------------
-    caps = [cv2.VideoCapture(video_path) for video_path in video_paths]
     j = 0
     for cap in caps:
         i = 0
@@ -336,14 +334,14 @@ def contours_extraction(video_paths,
         print(f"Saving frames into {frames_folder}...")
         if not os.path.exists(frames_folder):
             os.mkdir(frames_folder)
-        while True:
+        for i in selected_frames:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
             ret, frame = cap.read()
             if not ret:
-                break
-            if i in selected_frames:
-                print(f"frame: {i}", end="\r", flush=True)
-                output_path = os.path.join(frames_folder, f"{root_name}-{i}.png")
-                cv2.imwrite(output_path, frame)
+                continue
+            print(f"frame: {i}", end="\r", flush=True)
+            output_path = os.path.join(frames_folder, f"{root_name}-{i}.png")
+            cv2.imwrite(output_path, frame)
             i += 1
         j += 1
 
@@ -691,8 +689,8 @@ def get_video_files(input_path, recursive):
         pattern = "**/*" if recursive else "*"
         video_files = [str(p) for p in Path(input_path).glob(pattern) if p.is_file()]
         for video in video_files:
-            if not video.lower().endswith(('.mkv')):
-                print(colored(f"The file '{video}' does not end as one of the following format .mkv", "yellow"))
+            if not video.lower().endswith(('.mp4')):
+                print(colored(f"The file '{video}' does not end as one of the following format .mp4", "yellow"))
                 video_files.remove(video)
         if not video_files:
             raise argparse.ArgumentTypeError(
@@ -700,8 +698,8 @@ def get_video_files(input_path, recursive):
             )
         return video_files
     elif os.path.isfile(input_path):
-        if not input_path.lower().endswith(('.mkv')):
-            print(colored(f"The file '{input_path}' does not end as one of the following format .mkv", "yellow"))
+        if not input_path.lower().endswith(('.mp4')):
+            print(colored(f"The file '{input_path}' does not end as one of the following format .mp4", "yellow"))
             return
         return [input_path]
     else:
