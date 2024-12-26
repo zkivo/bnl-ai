@@ -8,7 +8,10 @@ import random
 from torchvision.transforms import functional as F
 from torchvision.transforms import Pad
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import math
+import cv2
+import numpy as np
 
 def calculate_padding(original_width, original_height, target_width, target_height):
     original_aspect_ratio = original_width / original_height
@@ -71,6 +74,8 @@ class ImageKeypointTransform:
         max_x = min(image.size[0], int(max_x + padding_x))
         max_y = min(image.size[1], int(max_y + padding_y))
         image = image.crop((min_x, min_y, max_x, max_y))
+        mean_cropped = np.mean(image)
+        std_cropped  = np.std(image)
         # Crop keypoints
         keypoints_2d[:, 0] -= min_x
         keypoints_2d[:, 1] -= min_y
@@ -81,7 +86,8 @@ class ImageKeypointTransform:
         # ----------------------------------
 
         # Random rotation
-        angle = random.uniform(-self.rotation, self.rotation)
+        # angle = random.uniform(-self.rotation, self.rotation)
+        angle = random.choice([90, 180, 270])
         # Calculate bounding box of the rotated image and rotate image
         crop_width, crop_height = image.size
         angle_rad = math.radians(angle)
@@ -115,17 +121,16 @@ class ImageKeypointTransform:
         # Resize keypoints
         keypoints[::2] *= scale_x  # Scale x-coordinates
         keypoints[1::2] *= scale_y  # Scale y-coordinates
-
-        # print figure before normalization
-        # plt.figure(figsize=(6, 6))
-        # plt.imshow(image)
-        # plt.show()
+        padding_width  = int( padding_width * scale_x)
+        padding_height = int( padding_height * scale_y)
+        print(f"padding width: {padding_width}, padding height: {padding_height}")
 
         # Normalize image
-        image = F.to_tensor(image)
-        image = F.normalize(image, mean=[self.mean] * 3, std=[self.std] * 3)
-
-        # print information about the image
+        image = F.to_tensor(image)        
+        # image = F.normalize(image, mean=[image.mean(), image.mean(), image.mean()],
+        #                      std=[image.std(), image.std(), image.std()])
+        image = F.normalize(image, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        
         # print(f'image size: {image.size()}')
         # print(f'image aspect ratio: {image.size(1) / image.size(2)}')
         # print(f'output aspect ratio: {self.output_size[0] / self.output_size[1]}')
@@ -133,9 +138,8 @@ class ImageKeypointTransform:
         # print(f'std: {image.std()}')
         # print(f'min: {image.min()}')
         # print(f'max: {image.max()}')
-        # print(image)
 
-        return image, keypoints
+        return image, keypoints, padding_width, padding_height
 
 class MousePoseDataset(Dataset):
     def __init__(self, image_folder, label_file, transform=None):
@@ -163,9 +167,57 @@ class MousePoseDataset(Dataset):
 
         # Apply transformations if provided
         if self.transform:
-            image, keypoints = self.transform(image, torch.tensor(keypoints))
+            image, keypoints, padding_width, padding_height = self.transform(image, torch.tensor(keypoints))
 
-        return image, keypoints
+        return image, keypoints, padding_width, padding_height
+
+def generate_heatmap(image, keypoint, padding_width, padding_height, heatmap_size=(64, 48), sigma=2):
+    """
+    Generates a heatmap for a given keypoint while handling black padding.
+
+    Args:
+        image (torch.Tensor): Original image tensor of shape (C, H, W).
+        keypoint (torch.Tensor): Keypoint tensor of shape (2,), in (x, y) format.
+        padding_width (int): Width of the padding.
+        padding_height (int): Height of the padding.
+        heatmap_size (tuple): Output heatmap size (height, width).
+        sigma (float): Standard deviation for the Gaussian.
+
+    Returns:
+        torch.Tensor: Heatmap tensor of shape (1, height, width).
+    """
+    # Unpack dimensions
+    _, img_h, img_w = image.shape
+    heatmap_h, heatmap_w = heatmap_size
+
+    # Convert keypoint to heatmap space
+    x, y = keypoint
+    scale_x = heatmap_w / img_w
+    scale_y = heatmap_h / img_h
+    keypoint_hm = torch.tensor([x * scale_x, y * scale_y])
+    padding_width  = int(padding_width * scale_x)
+    padding_height = int(padding_height * scale_y)
+
+    # Create the Gaussian heatmap
+    heatmap = np.zeros((heatmap_h, heatmap_w), dtype=np.float32)
+    center_x, center_y = int(keypoint_hm[0]), int(keypoint_hm[1])
+
+    for i in range(heatmap_h):
+        for j in range(heatmap_w):
+            heatmap[i, j] = np.exp(-((i - center_y) ** 2 + (j - center_x) ** 2) / (2 * sigma ** 2))
+
+    if padding_height != 0:
+        heatmap[:padding_height, :]  = 0  # Top padding
+        heatmap[-padding_height:, :] = 0  # Bottom padding
+    if padding_width != 0:
+        heatmap[:, :padding_width]   = 0  # Left padding
+        heatmap[:, -padding_width:]  = 0  # Right padding
+
+    # Normalize heatmap to range [0, 1]
+    heatmap /= heatmap.max()
+
+    # Convert to tensor
+    return torch.tensor(heatmap, dtype=torch.float32).unsqueeze(0)
 
 # Set paths
 image_folder = "data/dataset"
@@ -181,19 +233,26 @@ data_loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=0)
 # Iterate through the data loader
 # selec a random integer between 0 and dataset length
 index = random.randint(0, len(dataset))
-for i, (images, keypoints) in enumerate(data_loader):
-    if i % 10 == 0:  # Show every 10th batch
+for i, (images, keypoints, padding_width, padding_height) in enumerate(data_loader):
+    if i % 5 == 0:  # Show every 10th batch
         # Assuming batch size is > 1, take the first image and its keypoints
         image = images[0]  # Tensor of shape (C, H, W)
-        keypoint = keypoints[0]  # Corresponding keypoints for the image
+        keypoint = keypoints[0]
+        heatmap = generate_heatmap(image, keypoint[0:2], padding_width=padding_width,
+                                    padding_height=padding_height,
+                                    heatmap_size=(64, 48), sigma=2)
 
-        # Convert the image tensor to a numpy array for display
-        image_np = F.to_pil_image(image)
+        # Visualize heatmap
+        plt.figure(figsize=(6, 6))
+        plt.imshow(heatmap.squeeze(0), cmap='hot', interpolation='nearest')
 
         # Plot the image
         plt.figure(figsize=(6, 6))
-        plt.imshow(image_np)
+        plt.imshow(image.numpy().transpose(1, 2, 0))
         plt.scatter(keypoint[::2], keypoint[1::2], c='red', s=20)  # Plot keypoints
         plt.title(f"Image {i * len(images)} with Keypoints")
         plt.axis("off")
         plt.show()
+
+
+
