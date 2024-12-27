@@ -4,6 +4,7 @@ data
 bin
 share
 pyvenv.cfg
+out
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

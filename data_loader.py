@@ -31,7 +31,7 @@ def calculate_padding(original_width, original_height, target_width, target_heig
     return int(padding_width), int(padding_height)
 
 class ImageKeypointTransform:
-    def __init__(self, rotation=180, output_size=(256, 192), mean=0.5, std=0.5):
+    def __init__(self, output_size=(256, 192), mean=0.5, std=0.5):
         """
         Args:
             rotation (int): Maximum rotation angle in degrees.
@@ -39,7 +39,6 @@ class ImageKeypointTransform:
             mean (float): Mean for normalization.
             std (float): Standard deviation for normalization.
         """
-        self.rotation = rotation
         self.output_size = output_size
         self.mean = mean
         self.std = std
@@ -128,7 +127,8 @@ class ImageKeypointTransform:
         image = F.to_tensor(image)        
         # image = F.normalize(image, mean=[image.mean(), image.mean(), image.mean()],
         #                      std=[image.std(), image.std(), image.std()])
-        image = F.normalize(image, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        image = F.normalize(image, mean=[self.mean, self.mean, self.mean], 
+                            std=[self.std, self.std, self.std])
         
         # print(f'image size: {image.size()}')
         # print(f'image aspect ratio: {image.size(1) / image.size(2)}')
@@ -139,7 +139,7 @@ class ImageKeypointTransform:
         # print(f'max: {image.max()}')
         return image, cropped_image, keypoints, padding_width, padding_height
 
-class MousePoseDataset(Dataset):
+class MouseDataset(Dataset):
     def __init__(self, image_folder, label_file, transform=None):
         """
         Args:
@@ -149,6 +149,7 @@ class MousePoseDataset(Dataset):
         """
         self.image_folder = image_folder
         self.labels = pd.read_csv(label_file)
+        self.labels.drop(labels=['tail_lower_midpoint-x', 'tail_lower_midpoint-y', 'tail_upper_midpoint-x', 'tail_upper_midpoint-y'], axis=1, inplace=True)
         self.transform = transform
 
     def __len__(self):
@@ -159,7 +160,6 @@ class MousePoseDataset(Dataset):
         img_name = self.labels.iloc[idx, 0]  # Assuming the first column is the image file name
         img_path = os.path.join(self.image_folder, img_name)
         keypoints = self.labels.iloc[idx, 1:].values.astype('float32')  # Rest are keypoints
-
         # Load image
         image = Image.open(img_path).convert("RGB")
 
@@ -191,7 +191,7 @@ def generate_heatmap(image, keypoint, padding_width, padding_height, heatmap_siz
 
     # Check for NaN values in keypoint
     if torch.isnan(keypoint).any():
-        return None
+        return torch.zeros(heatmap_h, heatmap_w, dtype=torch.float32)
 
     # Convert keypoint to heatmap space
     x, y = keypoint
@@ -222,43 +222,43 @@ def generate_heatmap(image, keypoint, padding_width, padding_height, heatmap_siz
     # Convert to tensor
     return torch.tensor(heatmap, dtype=torch.float32)
 
-# Set paths
-image_folder = "data/dataset"
-label_file = "data/dataset/labels.csv"
+if __name__ == "__main__":
+    # Set paths
+    image_folder = "data/dataset"
+    label_file = "data/dataset/labels.csv"
 
-# Define transformations
-transform = ImageKeypointTransform(rotation=180, output_size=(256, 192), mean=0.5, std=0.5)
+    # Define transformations
+    transform = ImageKeypointTransform(output_size=(256, 192), mean=0.5, std=0.5)
 
-# Create dataset and data loader
-dataset = MousePoseDataset(image_folder=image_folder, label_file=label_file, transform=transform)
-data_loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=0)
+    # Create dataset and data loader
+    dataset = MouseDataset(image_folder=image_folder, label_file=label_file, transform=transform)
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=0)
 
-# Iterate through the data loader
-# selec a random integer between 0 and dataset length
-index = random.randint(0, len(dataset))
-for i, (images, cropped_image, keypoints, padding_width, padding_height) in enumerate(data_loader):
-    if i % 5 == 0:  # Show every 10th batch
-        image = images[0]  # first image of batch
-        heatmaps = []
-        keypoints = keypoints.view(-1, 2)
-        for keypoint in keypoints:
-            heatmap = generate_heatmap(image, keypoint, padding_width=padding_width,
-                                        padding_height=padding_height,
-                                        heatmap_size=(64, 48), sigma=2)
-            heatmaps.append(heatmap)
-        overlap_hm = heatmaps[0]
-        for hm in heatmaps[1:]:
-            try:
-                overlap_hm = torch.maximum(overlap_hm, hm)        
-            except Exception as e: 
-                if overlap_hm is None:
-                    overlap_hm = hm
-        fig, ax = plt.subplots(1, 3)
-        ax[2].imshow(overlap_hm, cmap='hot', interpolation='nearest')
-        ax[1].imshow(image.numpy().transpose(1, 2, 0))
-        ax[1].scatter(keypoints[:,0], keypoints[:,1], c='red', s=20)  # Plot keypoints
-        ax[0].imshow(cropped_image[0])
-        plt.show()
-
-
+    # Iterate through the data loader
+    # selec a random integer between 0 and dataset length
+    index = random.randint(0, len(dataset))
+    for i, (images, cropped_image, keypoints, padding_width, padding_height) in enumerate(data_loader):
+        if i % 5 == 0:  # Show every 10th batch
+            image = images[0]  # first image of batch
+            heatmaps = []
+            keypoints = keypoints.view(-1, 2)
+            for keypoint in keypoints:
+                heatmap = generate_heatmap(image, keypoint, padding_width=padding_width,
+                                            padding_height=padding_height,
+                                            heatmap_size=(64, 48), sigma=2)
+                heatmaps.append(heatmap)
+            overlap_hm = heatmaps[0]
+            for hm in heatmaps[1:]:
+                try:
+                    overlap_hm = torch.maximum(overlap_hm, hm)        
+                except Exception as e: 
+                    if overlap_hm is None:
+                        overlap_hm = hm
+            
+            fig, ax = plt.subplots(1, 3)
+            ax[2].imshow(overlap_hm, cmap='hot', interpolation='nearest')
+            ax[1].imshow(image.numpy().transpose(1, 2, 0))
+            ax[1].scatter(keypoints[:,0], keypoints[:,1], c='red', s=20)  # Plot keypoints
+            ax[0].imshow(cropped_image[0])
+            plt.show()
 

@@ -275,8 +275,8 @@ class PoseHighResolutionNet(nn.Module):
             "MODEL": {
                 "INIT_WEIGHTS": True,
                 "NAME": "pose_hrnet",
-                "NUM_JOINTS": 17,
-                "PRETRAINED": "data/pose_hrnet_w32_256x192.pth",
+                "NUM_JOINTS": 14,
+                "PRETRAINED": "data/hrnet_w32-36af842e.pth",
                 "TARGET_TYPE": "gaussian",
                 "IMAGE_SIZE": [192, 256],
                 "HEATMAP_SIZE": [48, 64],
@@ -527,7 +527,7 @@ class PoseHighResolutionNet(nn.Module):
                         nn.init.constant_(m.bias, 0)
 
         if os.path.isfile(pretrained):
-            pretrained_state_dict = torch.load(pretrained, map_location=torch.device('cpu'))
+            pretrained_state_dict = torch.load(pretrained, map_location=torch.device('cpu'), weights_only=True)
             logger.info('=> loading pretrained model {}'.format(pretrained))
 
             need_init_state_dict = {}
@@ -545,6 +545,6 @@ def get_pose_net(is_train, **kwargs):
     model = PoseHighResolutionNet(**kwargs)
 
     if is_train:
-        model.init_weights(pretrained='data/pose_hrnet_w32_256x192.pth')
+        model.init_weights(pretrained='data/hrnet_w32-36af842e.pth')
 
     return model
