@@ -92,4 +92,4 @@ for epoch in range(epochs):
     print(f"Average Test Loss: {test_loss / len(test_dataset):.4f}")
 
     if epoch % 10 == 0:
-        torch.save(model.state_dict(), os.path.join(output_folder, 'snapshot.pth'))
+        torch.save(model.state_dict(), os.path.join(output_folder, f'snapshot_{epoch}.pth'))

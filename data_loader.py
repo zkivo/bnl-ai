@@ -30,35 +30,48 @@ def calculate_padding(original_width, original_height, target_width, target_heig
 
     return int(padding_width), int(padding_height)
 
-class ImageKeypointTransform:
-    def __init__(self, output_size=(256, 192), mean=0.5, std=0.5):
+class MouseDataset(Dataset):
+    def __init__(self, image_folder, label_file, output_size, plot=False):
         """
         Args:
-            rotation (int): Maximum rotation angle in degrees.
-            output_size (tuple): Desired output size (height, width).
-            mean (float): Mean for normalization.
-            std (float): Standard deviation for normalization.
+            image_folder (str): Path to the folder containing images.
+            label_file (str): Path to the CSV file containing labels (keypoints).
+            plot (bool): Whether to plot images.
         """
+        self.image_folder = image_folder
+        self.labels = pd.read_csv(label_file)
+        self.labels.drop(labels=['tail_lower_midpoint-x', 'tail_lower_midpoint-y', 'tail_upper_midpoint-x', 'tail_upper_midpoint-y'], axis=1, inplace=True)
+        self.plot = plot
         self.output_size = output_size
-        self.mean = mean
-        self.std = std
 
-    def __call__(self, image, keypoints):
-        # steps:
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        
+        # ------- steps --------
         # Crop image around mouse
         # rotate with extension = True
         # add padding so that matches next resizing aspect ratio
         # resize to match input model
         # normalize image
+        # generate heatmap for each keypoint
+        # ----------------------
 
-        keypoints_2d = keypoints.view(-1, 2)
+        # 
+        img_name = self.labels.iloc[idx, 0]
+        img_path = os.path.join(self.image_folder, img_name)
+        image = Image.open(img_path).convert("RGB")
+        keypoints = self.labels.iloc[idx, 1:].values.astype('float32')  # Rest are keypoints
+        keypoints = torch.tensor(keypoints)
+        keypoints = keypoints.view(-1, 2)
 
         # ----------------------------------
         # --- Crop images and keypoints ----
         # ----------------------------------
 
         # Filter out invalid (NaN) keypoints
-        valid_keypoints = keypoints_2d[~torch.isnan(keypoints_2d).any(dim=1)]
+        valid_keypoints = keypoints[~torch.isnan(keypoints).any(dim=1)]
         if len(valid_keypoints) == 0:
             raise ValueError("All keypoints are NaN for this sample.")
         min_x, _ = torch.min(valid_keypoints[:, 0], 0)
@@ -73,12 +86,11 @@ class ImageKeypointTransform:
         max_x = min(image.size[0], int(max_x + padding_x))
         max_y = min(image.size[1], int(max_y + padding_y))
         image = image.crop((min_x, min_y, max_x, max_y))
-        cropped_image = np.array(image.copy())
 
         # Crop keypoints
-        keypoints_2d[:, 0] -= min_x
-        keypoints_2d[:, 1] -= min_y
-        keypoints = keypoints_2d.view(-1)
+        keypoints[:, 0] -= min_x
+        keypoints[:, 1] -= min_y
+        keypoints = keypoints.view(-1)
 
         # ----------------------------------
         # --- Rotate images and keypoints --
@@ -102,6 +114,12 @@ class ImageKeypointTransform:
         keypoints -= torch.tensor([center_x, center_y])
         keypoints = torch.mm(keypoints, rotation_matrix.T) + torch.tensor([center_x, center_y])
 
+        #plot image with keypoints
+        if self.plot:
+            fig, ax = plt.subplots()
+            ax.imshow(image)
+            ax.scatter(keypoints[:,0], keypoints[:,1], c='red', s=20)
+
         # ----------------------------------
         # --- Add padding and resize -------
         # ----------------------------------
@@ -124,12 +142,9 @@ class ImageKeypointTransform:
         padding_height = int( padding_height * scale_y)
 
         # Normalize image
-        image = F.to_tensor(image)        
-        # image = F.normalize(image, mean=[image.mean(), image.mean(), image.mean()],
-        #                      std=[image.std(), image.std(), image.std()])
-        image = F.normalize(image, mean=[self.mean, self.mean, self.mean], 
-                            std=[self.std, self.std, self.std])
-        
+        image = F.to_tensor(image)
+        image = F.normalize(image, mean=[0.5] * 3, std=[0.5] * 3)
+
         # print(f'image size: {image.size()}')
         # print(f'image aspect ratio: {image.size(1) / image.size(2)}')
         # print(f'output aspect ratio: {self.output_size[0] / self.output_size[1]}')
@@ -137,38 +152,23 @@ class ImageKeypointTransform:
         # print(f'std: {image.std()}')
         # print(f'min: {image.min()}')
         # print(f'max: {image.max()}')
-        return image, cropped_image, keypoints, padding_width, padding_height
 
-class MouseDataset(Dataset):
-    def __init__(self, image_folder, label_file, transform=None):
-        """
-        Args:
-            image_folder (str): Path to the folder containing images.
-            label_file (str): Path to the CSV file containing labels (keypoints).
-            transform (callable, optional): Optional transform to be applied on an image and keypoints.
-        """
-        self.image_folder = image_folder
-        self.labels = pd.read_csv(label_file)
-        self.labels.drop(labels=['tail_lower_midpoint-x', 'tail_lower_midpoint-y', 'tail_upper_midpoint-x', 'tail_upper_midpoint-y'], axis=1, inplace=True)
-        self.transform = transform
+        # ----------------------------------
+        # ------- Generate heatmaps --------
+        # ----------------------------------
 
-    def __len__(self):
-        return len(self.labels)
+        heatmaps = []
+        keypoints = keypoints.view(-1, 2)
+        for keypoint in keypoints:
+            heatmap = generate_heatmap(image, keypoint, 
+                                        padding_width=padding_width,
+                                        padding_height=padding_height,
+                                        heatmap_size=(64, 48), sigma=2)
+            heatmaps.append(heatmap)
 
-    def __getitem__(self, idx):
-        # Get image file name and keypoints
-        img_name = self.labels.iloc[idx, 0]  # Assuming the first column is the image file name
-        img_path = os.path.join(self.image_folder, img_name)
-        keypoints = self.labels.iloc[idx, 1:].values.astype('float32')  # Rest are keypoints
-        # Load image
-        image = Image.open(img_path).convert("RGB")
+        heatmaps = torch.stack(heatmaps)
 
-        # Apply transformations if provided
-        if self.transform:
-            image, cropped_image, keypoints, padding_width, padding_height = \
-            self.transform(image, torch.tensor(keypoints))
-
-        return image, cropped_image, keypoints, padding_width, padding_height
+        return image, heatmaps
 
 def generate_heatmap(image, keypoint, padding_width, padding_height, heatmap_size=(64, 48), sigma=2):
     """
@@ -227,26 +227,21 @@ if __name__ == "__main__":
     image_folder = "data/dataset"
     label_file = "data/dataset/labels.csv"
 
-    # Define transformations
-    transform = ImageKeypointTransform(output_size=(256, 192), mean=0.5, std=0.5)
-
     # Create dataset and data loader
-    dataset = MouseDataset(image_folder=image_folder, label_file=label_file, transform=transform)
+    dataset = MouseDataset(image_folder=image_folder,
+                           label_file=label_file, 
+                           output_size=(256, 192),
+                           plot=True)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=0)
 
     # Iterate through the data loader
     # selec a random integer between 0 and dataset length
     index = random.randint(0, len(dataset))
-    for i, (images, cropped_image, keypoints, padding_width, padding_height) in enumerate(data_loader):
+    for i, (images, heatmaps) in enumerate(data_loader):
         if i % 5 == 0:  # Show every 10th batch
-            image = images[0]  # first image of batch
-            heatmaps = []
-            keypoints = keypoints.view(-1, 2)
-            for keypoint in keypoints:
-                heatmap = generate_heatmap(image, keypoint, padding_width=padding_width,
-                                            padding_height=padding_height,
-                                            heatmap_size=(64, 48), sigma=2)
-                heatmaps.append(heatmap)
+            image = images[0]
+            heatmaps = heatmaps[0]
+
             overlap_hm = heatmaps[0]
             for hm in heatmaps[1:]:
                 try:
@@ -254,11 +249,11 @@ if __name__ == "__main__":
                 except Exception as e: 
                     if overlap_hm is None:
                         overlap_hm = hm
-            
-            fig, ax = plt.subplots(1, 3)
-            ax[2].imshow(overlap_hm, cmap='hot', interpolation='nearest')
-            ax[1].imshow(image.numpy().transpose(1, 2, 0))
-            ax[1].scatter(keypoints[:,0], keypoints[:,1], c='red', s=20)  # Plot keypoints
-            ax[0].imshow(cropped_image[0])
+
+            fig, ax = plt.subplots(1, 2)
+            ax[1].imshow(overlap_hm, cmap='hot', interpolation='nearest')
+            ax[0].imshow(image.numpy().transpose(1, 2, 0))
+            # ax[1].scatter(keypoints[:,0], keypoints[:,1], c='red', s=20)  # Plot keypoints
+            # ax[0].imshow(cropped_image[0])
             plt.show()
 
