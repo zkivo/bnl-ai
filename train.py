@@ -18,9 +18,12 @@ if platform.system() == "Darwin":  # "Darwin" is the name for macOS
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-if device.type == 'cpu':
-    torch.set_num_threads(torch.get_num_threads())
-    torch.set_num_interop_threads(torch.get_num_interop_threads())
+print(f'Torch version: {torch.__version__}')
+print(f'Torch device: {device}')
+
+# if device.type == 'cpu':
+#     torch.set_num_threads(torch.get_num_threads())
+#     torch.set_num_interop_threads(torch.get_num_interop_threads())
 
 # def signal_handler(sig, frame):
 #     print('Saving loss graph...')
