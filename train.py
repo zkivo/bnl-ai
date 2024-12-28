@@ -16,6 +16,8 @@ from datetime import datetime
 if platform.system() == "Darwin":  # "Darwin" is the name for macOS
     multiprocessing.set_start_method("fork", force=True)
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 # def signal_handler(sig, frame):
 #     print('Saving loss graph...')
 #     plt.figure()
@@ -54,7 +56,7 @@ test_batch_size = 1
 train_dataloader = DataLoader(train_dataset, batch_size=train_batch_size, num_workers=2, shuffle=True)
 test_dataloader  = DataLoader(test_dataset,  batch_size=test_batch_size, num_workers=2, shuffle=False)
 
-model = get_pose_net(is_train=True)
+model = get_pose_net(is_train=True).to(device)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -64,6 +66,7 @@ for epoch in range(1, epochs + 1):
     start_time = time.time()
     num_batches = 0
     for batch_idx, (images, heatmaps) in enumerate(train_dataloader):
+        images, heatmaps = images.to(device), heatmaps.to(device)
         num_batches += 1
         optimizer.zero_grad()
         prediction = model(images)
@@ -84,6 +87,7 @@ for epoch in range(1, epochs + 1):
     test_loss = 0.0
     num_batches = 0
     for batch_idx, (images, heatmaps) in enumerate(test_dataloader):
+        images, heatmaps = images.to(device), heatmaps.to(device)
         num_batches += 1
         prediction = model(images)
         loss = criterion(prediction, heatmaps)
