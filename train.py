@@ -58,7 +58,7 @@ test_size = len(dataset) - train_size
 
 # Split the dataset into training and test sets
 train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
-train_batch_size = 4
+train_batch_size = 10
 test_batch_size = 1
 train_dataloader = DataLoader(train_dataset, batch_size=train_batch_size, num_workers=2, shuffle=True)
 test_dataloader  = DataLoader(test_dataset,  batch_size=test_batch_size, num_workers=2, shuffle=False)
@@ -82,15 +82,12 @@ for epoch in range(1, epochs + 1):
         train_loss += loss.item()
         loss.backward()
         optimizer.step()
-        print(f'[{(batch_idx + 1) * train_batch_size} / {len(train_dataset)}]: loss: {loss.item()}')
+        # print(f'[{(batch_idx + 1) * train_batch_size} / {len(train_dataset)}]: loss: {loss.item()}')
     train_loss /= num_batches
     train_losses.append(train_loss)
-    training_time = time.time() - start_time
-    print(f"Epoch [{epoch}/{epochs}], Average Train Loss: {train_loss}" \
-          f" Time: {training_time:.2f}")
+    overall_time = time.time() - start_time
     
     model.eval()
-    print('Testing...')
     test_loss = 0.0
     num_batches = 0
     for batch_idx, (images, heatmaps) in enumerate(test_dataloader):
@@ -101,15 +98,18 @@ for epoch in range(1, epochs + 1):
         test_loss += loss.item()
         # print(f'{batch_idx}: loss: {loss.item()}')
     test_loss /= num_batches
-    print(f"Average Test Loss: {test_loss}")
+    overall_time = time.time() - start_time
 
-    if epoch % 50 == 0:
+    print(f"Epoch [{epoch}/{epochs}], Average Train Loss: {train_loss}, Average Test Loss: {test_loss}" \
+          f", Time: {overall_time:.2f}")
+
+    if epoch % 2 == 0:
         print(f'Saving snapshot at epoch {epoch}...')
         torch.save(model.state_dict(), os.path.join(output_folder, f'snapshot_{epoch}.pth'))
     
     with open(os.path.join(output_folder, 'loss.csv'), 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if csvfile.tell() == 0:  # Check if the file is empty
-            writer.writerow(['epoch', 'average_train_loss', 'average_test_loss', 'training_time'])
-        writer.writerow([epoch, train_loss, test_loss, training_time])
+            writer.writerow(['epoch', 'average_train_loss', 'average_test_loss', 'overall_time'])
+        writer.writerow([epoch, train_loss, test_loss, overall_time])
 

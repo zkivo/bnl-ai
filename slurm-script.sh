@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -t 00:05:00
+#SBATCH -t 03:10:00
 
 #SBATCH -J BNL-AI
 
