@@ -48,30 +48,15 @@ if not os.path.exists(output_folder):
 dataset = TopViewDataset(image_folder='data/dataset/test', 
                        label_file='data/dataset/labels.csv', 
                        output_size=(256, 192),
-                       debug=True)
+                       debug=True,
+                       rotate=False)
 
 dataloader = DataLoader(dataset, batch_size=1, num_workers=2, shuffle=False)
 
 model = PoseHighResolutionNet().to(device)
-model.load_state_dict(torch.load('out/train-241229_132945/snapshot_100.pth', weights_only=True, map_location=torch.device('cpu')))
+model.load_state_dict(torch.load('out/train-241230_175730/snapshot_12.pth', weights_only=True, map_location=torch.device('cpu')))
 model.eval()
 criterion = nn.MSELoss()
-
-def overlay_keypoints_with_confidence(image, keypoints_with_confidence):
-    """
-    Overlays keypoints with confidence on an image.
-    Args:
-        image: Input image as a NumPy array.
-        keypoints_with_confidence: List of ((x, y), confidence) for each keypoint.
-    """
-    plt.imshow(image)
-    for (y, x), confidence in keypoints_with_confidence:
-        if confidence < 0.5:
-            continue
-        plt.scatter(x, y, c='red', s=30)  # Plot keypoints as red dots
-        plt.text(x, y - 5, f"{confidence*100:.1f}%", color='yellow', fontsize=8, ha='center')
-    plt.axis('off')
-
 
 def extract_keypoints_with_confidence(heatmaps):
     """
@@ -97,6 +82,7 @@ def extract_keypoints_with_confidence(heatmaps):
 with torch.no_grad():
     test_loss = 0.0
     num_batches = 0
+    fig, ax = plt.subplots(nrows=3, ncols=3, figsize=(15, 10))
     for batch_idx, (images, gt_hm, original_image, not_normalized_image) in enumerate(dataloader):
         num_batches += 1
         predictions = model(images)
@@ -114,10 +100,17 @@ with torch.no_grad():
             image_np = image.cpu().numpy().transpose(1, 2, 0)  # Convert CHW to HWC
 
             # Display image with keypoints
-            plt.figure(figsize=(8, 8))
-            plt.title("Image with Keypoints")
-            overlay_keypoints_with_confidence(not_normalized_image.squeeze(0), keypoints)
-            plt.show()
+            ax[int(batch_idx/3),batch_idx%3].imshow(not_normalized_image.squeeze(0))
+            for (y, x), confidence in keypoints:
+                # if confidence < 0.1:
+                #     continue
+                ax[int(batch_idx/3),batch_idx%3].scatter(x, y, c='red', s=10)  # Plot keypoints as red dots
+                # ax[int(batch_idx/3),batch_idx%3].text(x, y - 5, f"{confidence*100:.1f}%", color='yellow', fontsize=8, ha='center')
+            ax[int(batch_idx/3),batch_idx%3].axis('off')
+            if batch_idx == 8:
+                plt.tight_layout()
+                plt.savefig(os.path.join(output_folder, 'test_images_epoch_12.png'))
+                exit(0)
             # Display all heatmaps
             # plt.figure(figsize=(15, 10))
             # for i, heatmap in enumerate(resized_heatmaps):

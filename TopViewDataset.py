@@ -31,12 +31,13 @@ def calculate_padding(original_width, original_height, target_width, target_heig
     return int(padding_width), int(padding_height)
 
 class TopViewDataset(Dataset):
-    def __init__(self, image_folder, output_size, label_file=None, infer=False, debug=False):
+    def __init__(self, image_folder, output_size, label_file=None, rotate=True, infer=False, debug=False):
         """
         Args:
             image_folder (str): Path to the folder containing images.
             label_file (str): Path to the CSV file containing labels (keypoints).
             output_size (tuple): Output size of the images (height, width).
+            rotate (bool): Whether to randomly rotate the images of 90, 180 or 270 degrees.
             infer (bool): Whether to use the dataset for inference.
             debug (bool): Whether to return information for debug.
         """
@@ -44,6 +45,7 @@ class TopViewDataset(Dataset):
         self.output_size = output_size
         self.debug = debug
         self.infer = infer
+        self.rotate = rotate
         if infer:
             self.labels = None
         else:
@@ -111,25 +113,26 @@ class TopViewDataset(Dataset):
         # ----------------------------------
         # --- Rotate images and keypoints --
         # ----------------------------------
-
+        
+        keypoints = keypoints.view(-1, 2)
         # Random rotation
-        # angle = random.uniform(-self.rotation, self.rotation)
-        angle = random.choice([90, 180, 270])
-        # Calculate bounding box of the rotated image and rotate image
-        crop_width, crop_height = transformed_image.size
-        angle_rad = math.radians(angle)
-        transformed_image = F.rotate(transformed_image, angle, expand=True)
-        if not self.infer:
-            # Rotate keypoints
-            center_x, center_y = transformed_image.size[0] / 2, transformed_image.size[1] / 2
-            rotation_matrix = torch.tensor([
-                [math.cos(-angle_rad), -math.sin(-angle_rad)],
-                [math.sin(-angle_rad), math.cos(-angle_rad)]
-            ])
-            keypoints = keypoints.view(-1, 2)
-            keypoints += torch.tensor([(transformed_image.size[0] - crop_width) / 2, (transformed_image.size[1] - crop_height) / 2])  # Adjust for padding
-            keypoints -= torch.tensor([center_x, center_y])
-            keypoints = torch.mm(keypoints, rotation_matrix.T) + torch.tensor([center_x, center_y])
+        if self.rotate:
+            # angle = random.uniform(-self.rotation, self.rotation)
+            angle = random.choice([90, 180, 270])
+            # Calculate bounding box of the rotated image and rotate image
+            crop_width, crop_height = transformed_image.size
+            angle_rad = math.radians(angle)
+            transformed_image = F.rotate(transformed_image, angle, expand=True)
+            if not self.infer:
+                # Rotate keypoints
+                center_x, center_y = transformed_image.size[0] / 2, transformed_image.size[1] / 2
+                rotation_matrix = torch.tensor([
+                    [math.cos(-angle_rad), -math.sin(-angle_rad)],
+                    [math.sin(-angle_rad), math.cos(-angle_rad)]
+                ])
+                keypoints += torch.tensor([(transformed_image.size[0] - crop_width) / 2, (transformed_image.size[1] - crop_height) / 2])  # Adjust for padding
+                keypoints -= torch.tensor([center_x, center_y])
+                keypoints = torch.mm(keypoints, rotation_matrix.T) + torch.tensor([center_x, center_y])
         
         # ----------------------------------
         # --- Add padding and resize -------
