@@ -66,8 +66,9 @@ class TopViewDataset(Dataset):
         # generate heatmap for each keypoint
         # ----------------------
 
-        original_image = None
-        not_normalized_image = None
+        # these are list because the dataloader does not support null values
+        original_image = [] 
+        not_normalized_image = []
          
         img_name = self.filenames[idx]
         img_path = os.path.join(self.image_folder, img_name)

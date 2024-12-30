@@ -55,7 +55,7 @@ test_dataset  = TopViewDataset(image_folder='data/dataset/test',
                             label_file='data/dataset/labels.csv',
                             output_size=(256, 192))
 
-train_batch_size = 32
+train_batch_size = 10
 test_batch_size = 1
 train_dataloader = DataLoader(train_dataset, batch_size=train_batch_size, num_workers=2, shuffle=True)
 test_dataloader  = DataLoader(test_dataset,  batch_size=test_batch_size,  num_workers=2, shuffle=False)
@@ -74,7 +74,7 @@ for epoch in range(1, epochs + 1):
     train_loss = 0.0
     start_time = time.time()
     num_batches = 0
-    for batch_idx, (images, heatmaps) in enumerate(train_dataloader):
+    for batch_idx, (images, heatmaps, _, _) in enumerate(train_dataloader):
         images, heatmaps = images.to(device), heatmaps.to(device)
         num_batches += 1
         optimizer.zero_grad()
@@ -90,7 +90,7 @@ for epoch in range(1, epochs + 1):
     model.eval()
     test_loss = 0.0
     num_batches = 0
-    for batch_idx, (images, heatmaps) in enumerate(test_dataloader):
+    for batch_idx, (images, heatmaps, _, _) in enumerate(test_dataloader):
         images, heatmaps = images.to(device), heatmaps.to(device)
         num_batches += 1
         prediction = model(images)
