@@ -9,7 +9,7 @@ import multiprocessing
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, Dataset, random_split
 from hrnet_w32_256 import get_pose_net, PoseHighResolutionNet
-from MouseDataset import *
+from TopViewDataset import TopViewDataset
 import torch.nn.functional as F
 from torchvision.transforms.functional import resize
 import os
@@ -45,10 +45,10 @@ output_folder = f'out/test-{datetime.now().strftime("%y%m%d_%H%M%S")}'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
-dataset = MouseDataset(image_folder='data/dataset', 
+dataset = TopViewDataset(image_folder='data/dataset', 
                        label_file='data/dataset/labels.csv', 
                        output_size=(256, 192),
-                       plot=False)
+                       debug=True)
 
 dataloader = DataLoader(dataset, batch_size=1, num_workers=2, shuffle=False)
 
@@ -97,7 +97,7 @@ def extract_keypoints_with_confidence(heatmaps):
 with torch.no_grad():
     test_loss = 0.0
     num_batches = 0
-    for batch_idx, (images, _) in enumerate(dataloader):
+    for batch_idx, (images, gt_hm, original_image, not_normalized_image) in enumerate(dataloader):
         num_batches += 1
         predictions = model(images)
 
@@ -116,7 +116,7 @@ with torch.no_grad():
             # Display image with keypoints
             plt.figure(figsize=(8, 8))
             plt.title("Image with Keypoints")
-            overlay_keypoints_with_confidence(image_np, keypoints)
+            overlay_keypoints_with_confidence(not_normalized_image.squeeze(0), keypoints)
             plt.show()
             # Display all heatmaps
             # plt.figure(figsize=(15, 10))

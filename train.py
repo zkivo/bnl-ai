@@ -9,7 +9,7 @@ import multiprocessing
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, Dataset, random_split
 from hrnet_w32_256 import get_pose_net 
-from MouseDataset import *
+from TopViewDataset import TopViewDataset
 import os
 from datetime import datetime
 
@@ -47,10 +47,9 @@ learning_rate = 0.001
 epochs = 1000
 train_losses = []
 
-dataset = MouseDataset(image_folder='data/dataset', 
-                       label_file='data/dataset/labels.csv', 
-                       output_size=(256, 192),
-                       plot=False)
+dataset = TopViewDataset(image_folder='data/dataset', 
+                        label_file='data/dataset/labels.csv', 
+                        output_size=(256, 192))
 
 # Define the split ratio
 train_size = int(0.85 * len(dataset))
