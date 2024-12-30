@@ -45,7 +45,7 @@ output_folder = f'out/test-{datetime.now().strftime("%y%m%d_%H%M%S")}'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
-dataset = TopViewDataset(image_folder='data/dataset', 
+dataset = TopViewDataset(image_folder='data/dataset/test', 
                        label_file='data/dataset/labels.csv', 
                        output_size=(256, 192),
                        debug=True)

@@ -49,10 +49,11 @@ class TopViewDataset(Dataset):
         else:
             self.labels = pd.read_csv(label_file)
             self.labels.drop(labels=['tail_lower_midpoint-x', 'tail_lower_midpoint-y', 'tail_upper_midpoint-x', 'tail_upper_midpoint-y'], axis=1, inplace=True)
-
+        self.filenames = os.listdir(image_folder)
+        self.filenames.sort()
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.filenames)
 
     def __getitem__(self, idx):
         
@@ -68,13 +69,14 @@ class TopViewDataset(Dataset):
         original_image = None
         not_normalized_image = None
          
-        img_name = self.labels.iloc[idx, 0]
+        img_name = self.filenames[idx]
         img_path = os.path.join(self.image_folder, img_name)
         transformed_image = Image.open(img_path).convert("RGB")
         if self.debug:
             original_image = np.array(transformed_image.copy())
         if not self.infer:
-            keypoints = self.labels.iloc[idx, 1:].values.astype('float32')  # Rest are keypoints
+            keypoints = self.labels[self.labels.iloc[:, 0] == img_name].iloc[:, 1:].values.astype('float32') # Rest are keypoints
+            # keypoints = self.labels.loc[img_name, 1:].values.astype('float32')  # Rest are keypoints
             keypoints = torch.tensor(keypoints)
             keypoints = keypoints.view(-1, 2)
 

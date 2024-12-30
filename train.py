@@ -45,28 +45,31 @@ if not os.path.exists(output_folder):
 
 learning_rate = 0.001
 epochs = 1000
-train_losses = []
+patience = 10
+lowest_test_loss = float('inf')
 
-dataset = TopViewDataset(image_folder='data/dataset', 
-                        label_file='data/dataset/labels.csv', 
-                        output_size=(256, 192))
+train_dataset = TopViewDataset(image_folder='data/dataset/train', 
+                            label_file='data/dataset/labels.csv', 
+                            output_size=(256, 192))
+test_dataset  = TopViewDataset(image_folder='data/dataset/test',
+                            label_file='data/dataset/labels.csv',
+                            output_size=(256, 192))
 
-# Define the split ratio
-train_size = int(0.85 * len(dataset))
-test_size = len(dataset) - train_size
-
-# Split the dataset into training and test sets
-train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
-train_batch_size = 10
+train_batch_size = 32
 test_batch_size = 1
 train_dataloader = DataLoader(train_dataset, batch_size=train_batch_size, num_workers=2, shuffle=True)
-test_dataloader  = DataLoader(test_dataset,  batch_size=test_batch_size, num_workers=2, shuffle=False)
+test_dataloader  = DataLoader(test_dataset,  batch_size=test_batch_size,  num_workers=2, shuffle=False)
 
 model = get_pose_net(is_train=True).to(device)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
+count_patience = 0
 for epoch in range(1, epochs + 1):
+    if count_patience >= patience:
+        print(f'Early stopping at epoch {epoch}...')
+        break
+    count_patience += 1
     model.train()
     train_loss = 0.0
     start_time = time.time()
@@ -83,8 +86,6 @@ for epoch in range(1, epochs + 1):
         optimizer.step()
         # print(f'[{(batch_idx + 1) * train_batch_size} / {len(train_dataset)}]: loss: {loss.item()}')
     train_loss /= num_batches
-    train_losses.append(train_loss)
-    overall_time = time.time() - start_time
     
     model.eval()
     test_loss = 0.0
@@ -111,4 +112,11 @@ for epoch in range(1, epochs + 1):
         if csvfile.tell() == 0:  # Check if the file is empty
             writer.writerow(['epoch', 'average_train_loss', 'average_test_loss', 'overall_time'])
         writer.writerow([epoch, train_loss, test_loss, overall_time])
+
+    if test_loss < lowest_test_loss:
+        lowest_test_loss = test_loss
+        count_patience = 0
+        print(f'Saving best model...')
+        torch.save(model.state_dict(), os.path.join(output_folder, 'snapshot_best.pth'))
+
 
