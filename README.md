@@ -1,6 +1,9 @@
 # bnl-ai
 Tools and AI software for the Behavioural Neuroscience Laboratory.
 
+![animation_test_set](https://github.com/user-attachments/assets/f7d27515-8798-4224-8f11-4c47ad2c923c)
+
+
 ## Fix MKV files
 Usually the recordings are corrupted. The timestaps are *not monotonically increasing*. This causes errors in the
 processing of the file. To adjust the timestaps use the following command:
