@@ -103,7 +103,7 @@ for epoch in range(1, epochs + 1):
     print(f"Epoch [{epoch}/{epochs}], Average Train Loss: {train_loss}, Average Test Loss: {test_loss}" \
           f", Time: {overall_time:.2f}")
 
-    if epoch % 2 == 0:
+    if epoch % 100 == 0:
         print(f'Saving snapshot at epoch {epoch}...')
         torch.save(model.state_dict(), os.path.join(output_folder, f'snapshot_{epoch}.pth'))
     
