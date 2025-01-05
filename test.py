@@ -2,6 +2,7 @@ import csv
 import time
 import torch
 import signal
+import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 import platform
@@ -43,7 +44,8 @@ print(f'Torch device: {device}')
 
 output_folder = f'out/test-{datetime.now().strftime("%y%m%d_%H%M%S")}'
 if not os.path.exists(output_folder):
-    os.makedirs(output_folder)
+    # os.makedirs(output_folder)
+    pass
 
 dataset = TopViewDataset(image_folder='data/dataset/test', 
                        label_file='data/dataset/labels.csv', 
@@ -75,53 +77,58 @@ def extract_keypoints_with_confidence(heatmaps):
         
         # Confidence as the maximum value
         confidence = max_val.item()
-        keypoints_with_confidence.append(((y, x), confidence))
+        keypoints_with_confidence.append(((x, y), confidence))
     return keypoints_with_confidence
 
 
 with torch.no_grad():
     test_loss = 0.0
     num_batches = 0
-    fig, ax = plt.subplots(nrows=3, ncols=3, figsize=(15, 10))
-    for batch_idx, (images, gt_hm, original_image, not_normalized_image) in enumerate(dataloader):
+    pck = []
+    for batch_idx, (images, gt_keypoints, gt_hms, original_images, not_normalized_images) in enumerate(dataloader):
         num_batches += 1
         predictions = model(images)
-
-        for img_idx, (image, heatmaps) in enumerate(zip(images, predictions)):
+        image = images.squeeze(0)
+        gt_keypoints = gt_keypoints.squeeze(0)
+        gt_hms = gt_hms.squeeze(0)
+        predictions = predictions.squeeze(0)
+        not_normalized_image = not_normalized_images.squeeze(0)
+        # for img_idx, (image, heatmaps) in enumerate(zip(images, predictions)):
             # Rescale heatmaps to match image size
-            num_keypoints, h, w = heatmaps.shape
-            original_size = image.shape[1:]  # Assume CHW format
+        num_keypoints, h, w = predictions.shape
+        original_size = image.shape[1:]  # Assume CHW format
+        resized_heatmaps = torch.stack([resize(hm.unsqueeze(0), original_size, ) for hm in predictions])
+        keypoints = extract_keypoints_with_confidence(resized_heatmaps)
+        image_np = image.cpu().numpy().transpose(1, 2, 0)  # Convert CHW to HWC
 
-            # resized_heatmaps = torch.stack([F.interpolate(hm.unsqueeze(0), size=(256, 192), mode="bilinear", align_corners=False).squeeze(0) for hm in heatmaps])
-            resized_heatmaps = torch.stack([resize(hm.unsqueeze(0), original_size, ) for hm in heatmaps])
-            # Extract keypoints from heatmaps
-            keypoints = extract_keypoints_with_confidence(resized_heatmaps)
-            # Convert image to NumPy for plotting
-            image_np = image.cpu().numpy().transpose(1, 2, 0)  # Convert CHW to HWC
+        # distance keypoint 0 and 7
+        temp = []
+        for factor in [0.20, 0.5, 0.75]:
+            kps = torch.tensor([t[0] for t in keypoints], dtype=torch.float32)
+            dist_gt = torch.dist(gt_keypoints[0], gt_keypoints[7]) * factor
+            dist_pred = torch.sqrt(torch.sum((kps - gt_keypoints) ** 2, dim=1))
+            count = int(((dist_pred < dist_gt) & (dist_pred > 0)).sum().item())
+            temp.append(count)
+        pck.append(temp)
 
-            # Display image with keypoints
-            ax[int(batch_idx/3),batch_idx%3].imshow(not_normalized_image.squeeze(0))
-            for (y, x), confidence in keypoints:
-                # if confidence < 0.1:
-                #     continue
-                ax[int(batch_idx/3),batch_idx%3].scatter(x, y, c='red', s=10)  # Plot keypoints as red dots
-                # ax[int(batch_idx/3),batch_idx%3].text(x, y - 5, f"{confidence*100:.1f}%", color='yellow', fontsize=8, ha='center')
-            ax[int(batch_idx/3),batch_idx%3].axis('off')
-            if batch_idx == 8:
-                plt.tight_layout()
-                plt.savefig(os.path.join(output_folder, 'test_images_epoch_12.png'))
-                exit(0)
-            # Display all heatmaps
-            # plt.figure(figsize=(15, 10))
-            # for i, heatmap in enumerate(resized_heatmaps):
-            #     plt.subplot(2, int(np.ceil(num_keypoints / 2)), i + 1)
-            #     plt.imshow(heatmap.cpu().numpy(), cmap='hot')
-            #     plt.title(f"Keypoint {i + 1}")
-            #     plt.axis('off')
-            # plt.suptitle("Heatmaps")
-            # plt.show()
+        # ax[int(batch_idx/3),batch_idx%3].imshow(not_normalized_image.squeeze(0))
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 10))
+        ax[0].imshow(not_normalized_image.squeeze(0))
+        for (x, y), confidence in keypoints:
+            # ax[int(batch_idx/3),batch_idx%3].scatter(x, y, c='red', s=10)  # Plot keypoints as red dots
+            ax[0].scatter(x, y, c='red', s=10)
+        # ax[int(batch_idx/3),batch_idx%3].axis('off')
+        ax[0].axis('off')
+        # if batch_idx == 8:
+        #     plt.tight_layout()
+        #     plt.savefig(os.path.join(output_folder, 'test_images_epoch_12.png'))
+        #     exit(0)
+        # Display all heatmaps
+        max_hm, _ = torch.max(resized_heatmaps, dim=0)
+        ax[1].imshow(max_hm.squeeze(0).numpy(), cmap='hot')
+        # plt.show()
+    pck = np.array(pck)
+    tot_kp = 14 * 13
+    pck = pck.sum(axis=0) / tot_kp
+    print(pck)
 
-        # loss = criterion(predictions, heatmaps)
-        # test_loss += loss.item()
-        # print(f'{batch_idx}: loss: {loss.item()}')
-    # test_loss /= num_batches

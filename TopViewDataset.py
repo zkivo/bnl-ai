@@ -69,6 +69,7 @@ class TopViewDataset(Dataset):
         # ----------------------
 
         # these are list because the dataloader does not support null values
+        keypoints = []
         original_image = [] 
         not_normalized_image = []
          
@@ -82,6 +83,8 @@ class TopViewDataset(Dataset):
             # keypoints = self.labels.loc[img_name, 1:].values.astype('float32')  # Rest are keypoints
             keypoints = torch.tensor(keypoints)
             keypoints = keypoints.view(-1, 2)
+
+        original_keypoints = self.labels[self.labels.iloc[:, 0] == img_name].iloc[:, 1:].values.astype('float32')
 
         # ----------------------------------
         # --- Crop images and keypoints ----
@@ -113,7 +116,7 @@ class TopViewDataset(Dataset):
         # ----------------------------------
         # --- Rotate images and keypoints --
         # ----------------------------------
-        
+
         keypoints = keypoints.view(-1, 2)
         # Random rotation
         if self.rotate:
@@ -193,7 +196,7 @@ class TopViewDataset(Dataset):
 
             heatmaps = torch.stack(heatmaps)
 
-        return transformed_image, heatmaps, original_image, not_normalized_image
+        return transformed_image, keypoints, heatmaps, original_image, not_normalized_image
 
 def generate_heatmap(image, keypoint, padding_width, padding_height, heatmap_size=(64, 48), sigma=1):
     """
