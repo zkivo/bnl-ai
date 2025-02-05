@@ -60,6 +60,43 @@ def draw_annotations(image, row, show_bbox, show_kpts, show_text):
     cv2.putText(image, row['filename'], (text_x, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (  0,   0,   0), 5, cv2.LINE_AA)
     cv2.putText(image, row['filename'], (text_x, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
+def crop_and_zoom(image, row):
+    """Crop the image around the bounding box and enlarge it 2x with keypoints."""
+    if any(pd.isna([row['bbox_tl-x'], row['bbox_tl-y'], row['bbox_br-x'], row['bbox_br-y']])):
+        return None
+    
+    tl_x, tl_y, br_x, br_y = int(row['bbox_tl-x']), int(row['bbox_tl-y']), int(row['bbox_br-x']), int(row['bbox_br-y'])
+    cropped = image[tl_y:br_y, tl_x:br_x]
+    cropped = cv2.resize(cropped, (cropped.shape[1] * 3, cropped.shape[0] * 3))
+    
+    scale_x = 3
+    scale_y = 3
+    offset_x = -tl_x * scale_x
+    offset_y = -tl_y * scale_y
+    
+    for col in row.index:
+        if '-x' in col:
+            keypoint = col[:-2]
+            if pd.isna(row[f'{keypoint}-x']) or pd.isna(row[f'{keypoint}-y']):
+                continue
+            x = int(row[f'{keypoint}-x'] * scale_x + offset_x)
+            y = int(row[f'{keypoint}-y'] * scale_y + offset_y)
+            
+            if 'bbox' in keypoint.lower():
+                continue  # Skip bounding box keypoints
+
+            if 'right' in keypoint.lower():
+                color = COLOR_RIGHT
+            elif 'left' in keypoint.lower():
+                color = COLOR_LEFT
+            else:
+                color = COLOR_OTHER
+            
+            cv2.circle(cropped, (x, y), 5, color, -1)
+            cv2.putText(cropped, keypoint, (x + 5, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
+    
+    return cropped
+
 def main(csv_path, image_dir):
     df = load_annotations(csv_path)
     index = 0
@@ -76,11 +113,18 @@ def main(csv_path, image_dir):
             index += 1
             continue
         
-        image = cv2.imread(img_path)
+        original_image = cv2.imread(img_path)
+        image = original_image.copy()
         draw_annotations(image, row, show_bbox, show_kpts, show_text)
         
         # Add legend
-        legend = ["-> / D: Next image", "<- / A: Previous image", "B: Toggle bbox", "K: Toggle keypoints", "T: Toggle text", "ESC: Exit"]
+        legend = ["-> / D: Next image", 
+            "<- / A: Previous image", \
+            "B: Toggle bbox", 
+            "K: Toggle keypoints", 
+            "T: Toggle text", 
+            "C: Crop & Zoom",
+            "ESC: Exit"]
         y_offset = 20
         for text in legend:
             cv2.putText(image, text, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
@@ -91,6 +135,12 @@ def main(csv_path, image_dir):
         
         if key == 27:  # ESC to exit
             break
+        elif key == ord('c'):
+            cropped = crop_and_zoom(original_image, row)
+            if cropped is not None:
+                cv2.imshow("Cropped & Zoomed", cropped)
+                cv2.waitKey(0)
+                cv2.destroyWindow("Cropped & Zoomed")
         elif key == ord('b'):  # B key
             show_bbox = not show_bbox
         elif key == ord('k'):  # K key
