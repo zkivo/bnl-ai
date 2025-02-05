@@ -139,8 +139,13 @@ def main(csv_path, image_dir):
             cropped = crop_and_zoom(original_image, row)
             if cropped is not None:
                 cv2.imshow("Cropped & Zoomed", cropped)
-                cv2.waitKey(0)
-                cv2.destroyWindow("Cropped & Zoomed")
+                while True:
+                    crop_key = cv2.waitKey(10) & 0xFF
+                    if crop_key == 27:
+                        cv2.destroyWindow("Cropped & Zoomed")
+                        break
+                    elif cv2.getWindowProperty("Cropped & Zoomed", cv2.WND_PROP_VISIBLE) < 1:
+                        break
         elif key == ord('b'):  # B key
             show_bbox = not show_bbox
         elif key == ord('k'):  # K key
