@@ -18,7 +18,6 @@ def check_column_consistency(file_list):
             return None
     
     all_columns = set.union(*column_sets.values())
-    
     inconsistent_files = {}
     for file, columns in column_sets.items():
         unique_columns = columns - set.intersection(*column_sets.values())
