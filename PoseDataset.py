@@ -31,31 +31,45 @@ def calculate_padding(original_width, original_height, target_width, target_heig
     return int(padding_width), int(padding_height)
 
 class PoseDataset(Dataset):
-    def __init__(self, image_folder, output_size, label_file=None, rotate=True):
+    def __init__(self, image_folder, resize_to, heatmap_size, label_file=None, rotate=False):
         """
         Args:
             image_folder (str): Path to the folder containing images.
             label_file (str): Path to the CSV file containing labels (keypoints).
-            output_size (tuple): Output size of the images (height, width).
+            resize_to (tuple): Imaga size to which the transformation will resize to (height, width).
             rotate (bool): Whether to randomly rotate the images of 90, 180 or 270 degrees.
         """
         self.image_folder = image_folder
-        self.output_size = output_size
+        self.resize_to = resize_to
+        self.heatmap_size = heatmap_size
         self.rotate = rotate
         self.labels = pd.read_csv(label_file)
         self.filenames = os.listdir(image_folder)
         self.filenames.sort()
 
+        # bbox
+        df = self.labels.copy()
+        self.bbox = df[[col for col in df.columns if col.startswith("bbox_")]]
+        
         # keypoints
-        df = pd.read_csv(label_file)
         df = df.drop(columns=[col for col in df.columns if col.startswith("bbox_")])
         keypoints = sorted(set(col.rsplit('-', 1)[0] for col in df.columns if '-' in col))
         ordered_columns = [col for pair in keypoints for col in (f"{pair}-x", f"{pair}-y") if col in df.columns]
         ordered_columns = ['filename'] + ordered_columns if 'filename' in df.columns else ordered_columns
         self.keypoints = df[ordered_columns]
 
-        # bbox
-        self.bbox = df[[col for col in df.columns if col.startswith("bbox_")]]
+        # bodypart-heatmap index
+        df_cp = df.copy()
+        df_cp = df_cp.drop(columns=['filename'])
+        self.bp_hm_index = {}
+        for idx, col in enumerate(df_cp.columns):
+            # Remove '-x' or '-y' from the column name
+            base_name = col.rstrip('-xy')
+
+            if base_name not in self.bp_hm_index:
+                self.bp_hm_index[base_name] = idx
+        # print('bodypart-heatmap index')
+        # print(self.bp_hm_index) 
 
     def __len__(self):
         return len(self.filenames)
@@ -71,50 +85,42 @@ class PoseDataset(Dataset):
         # generate heatmap for each keypoint
         # ----------------------
 
-        # these are list because the dataloader does not support null values
-        keypoints = []
-        original_image = [] 
-        not_normalized_image = []
-         
         img_name = self.filenames[idx]
+
+        idx = self.labels[self.labels['filename'] == img_name].index[0]
+
+        bbox = self.bbox.iloc[idx,:].to_numpy()
+        
         img_path = os.path.join(self.image_folder, img_name)
         transformed_image = Image.open(img_path).convert("RGB")
-        if self.debug:
-            original_image = np.array(transformed_image.copy())
-        if not self.infer:
-            keypoints = self.keypoints[self.keypoints.iloc[:, 0] == img_name].iloc[:, 1:].values.astype('float32') # Rest are keypoints
-            # keypoints = self.keypoints.loc[img_name, 1:].values.astype('float32')  # Rest are keypoints
-            keypoints = torch.tensor(keypoints)
-            keypoints = keypoints.view(-1, 2)
-
-        original_keypoints = self.keypoints[self.keypoints.iloc[:, 0] == img_name].iloc[:, 1:].values.astype('float32')
+            # original_image = np.array(transformed_image.copy())
+        keypoints = self.keypoints[self.keypoints.iloc[:, 0] == img_name].iloc[:, 1:].values.astype('float32') # Rest are keypoints
+        # keypoints = self.keypoints.loc[img_name, 1:].values.astype('float32')  # Rest are keypoints
+        keypoints = torch.tensor(keypoints)
+        keypoints = keypoints.view(-1, 2)
 
         # ----------------------------------
         # --- Crop images and keypoints ----
         # ----------------------------------
 
-        if not self.infer:
-            # Filter out invalid (NaN) keypoints
-            valid_keypoints = keypoints[~torch.isnan(keypoints).any(dim=1)]
-            if len(valid_keypoints) == 0:
-                raise ValueError("All keypoints are NaN for this sample.")
-            min_x, _ = torch.min(valid_keypoints[:, 0], 0)
-            max_x, _ = torch.max(valid_keypoints[:, 0], 0)
-            min_y, _ = torch.min(valid_keypoints[:, 1], 0)
-            max_y, _ = torch.max(valid_keypoints[:, 1], 0)
-            # Add padding as 5% of the bounding box dimensions
-            padding_x = 0.20 * (max_x - min_x)
-            padding_y = 0.20 * (max_y - min_y)
-            min_x = max(0, int(min_x - padding_x))
-            min_y = max(0, int(min_y - padding_y))
-            max_x = min(transformed_image.size[0], int(max_x + padding_x))
-            max_y = min(transformed_image.size[1], int(max_y + padding_y))
-            transformed_image = transformed_image.crop((min_x, min_y, max_x, max_y))
+        # if not self.infer:
+        # Filter out invalid (NaN) keypoints
+        valid_keypoints = keypoints[~torch.isnan(keypoints).any(dim=1)]
+        if len(valid_keypoints) == 0:
+            raise ValueError("All keypoints are NaN for this sample.")
+        transformed_image = transformed_image.crop(bbox)
 
-            # Crop keypoints
-            keypoints[:, 0] -= min_x
-            keypoints[:, 1] -= min_y
-            keypoints = keypoints.view(-1)
+        # plt.figure()
+        # plt.imshow(transformed_image.permute(1, 2, 0))
+        # plt.title('1')
+        # plt.show()
+
+        # transformed_image.show()
+
+        # Crop keypoints
+        keypoints[:, 0] -= bbox[0]
+        keypoints[:, 1] -= bbox[1]
+        keypoints = keypoints.view(-1)
 
         # ----------------------------------
         # --- Rotate images and keypoints --
@@ -123,83 +129,71 @@ class PoseDataset(Dataset):
         keypoints = keypoints.view(-1, 2)
         # Random rotation
         if self.rotate:
-            # angle = random.uniform(-self.rotation, self.rotation)
-            angle = random.choice([90, 180, 270])
+            angle = random.choice([0, 90, 180, 270])
             # Calculate bounding box of the rotated image and rotate image
             crop_width, crop_height = transformed_image.size
             angle_rad = math.radians(angle)
             transformed_image = F.rotate(transformed_image, angle, expand=True)
-            if not self.infer:
-                # Rotate keypoints
-                center_x, center_y = transformed_image.size[0] / 2, transformed_image.size[1] / 2
-                rotation_matrix = torch.tensor([
-                    [math.cos(-angle_rad), -math.sin(-angle_rad)],
-                    [math.sin(-angle_rad), math.cos(-angle_rad)]
-                ])
-                keypoints += torch.tensor([(transformed_image.size[0] - crop_width) / 2, (transformed_image.size[1] - crop_height) / 2])  # Adjust for padding
-                keypoints -= torch.tensor([center_x, center_y])
-                keypoints = torch.mm(keypoints, rotation_matrix.T) + torch.tensor([center_x, center_y])
+            # Rotate keypoints
+            center_x, center_y = transformed_image.size[0] / 2, transformed_image.size[1] / 2
+            rotation_matrix = torch.tensor([
+                [math.cos(-angle_rad), -math.sin(-angle_rad)],
+                [math.sin(-angle_rad), math.cos(-angle_rad)]
+            ])
+            keypoints += torch.tensor([(transformed_image.size[0] - crop_width) / 2, (transformed_image.size[1] - crop_height) / 2])  # Adjust for padding
+            keypoints -= torch.tensor([center_x, center_y])
+            keypoints = torch.mm(keypoints, rotation_matrix.T) + torch.tensor([center_x, center_y])
         
+
         # ----------------------------------
         # --- Add padding and resize -------
         # ----------------------------------
 
         # Calculate padding to match the aspect ratio
-        padding_width, padding_height = calculate_padding(*transformed_image.size, *self.output_size)
+        padding_width, padding_height = calculate_padding(*transformed_image.size, *self.resize_to)
         # print(f"padding width: {padding_width}, padding height: {padding_height}")
         transformed_image = Pad(padding=(padding_width, padding_height), fill=0, padding_mode='constant')(transformed_image)
-        if not self.infer:
-            # Add padding to keypoints
-            keypoints += torch.tensor([padding_width, padding_height])  # Adjust for padding
-            keypoints = keypoints.view(-1)
+        # Add padding to keypoints
+        keypoints += torch.tensor([padding_width, padding_height])  # Adjust for padding
+        keypoints = keypoints.view(-1)
         # Resize image to output size
-        scale_x = self.output_size[1] / transformed_image.size[0]
-        scale_y = self.output_size[0] / transformed_image.size[1]
-        transformed_image = F.resize(transformed_image, self.output_size)
-        if not self.infer:
-            # Resize keypoints
-            keypoints[::2] *= scale_x  # Scale x-coordinates
-            keypoints[1::2] *= scale_y  # Scale y-coordinates
-            padding_width_hm  = int( padding_width * scale_x)
-            padding_height_hm = int( padding_height * scale_y)
-
-        if self.debug:
-            not_normalized_image = np.array(transformed_image.copy())
-            # # add keypoints to not_normalized_image
-            # for i in range(0, len(keypoints), 2):
-            #     x = int(keypoints[i].item())
-            #     y = int(keypoints[i+1].item())
-            #     cv2.circle(not_normalized_image, (x, y), 2, (255, 0, 0), -1)
-
+        scale_x = self.resize_to[1] / transformed_image.size[0]
+        scale_y = self.resize_to[0] / transformed_image.size[1]
+        transformed_image = F.resize(transformed_image, self.resize_to)
+        # Resize keypoints
+        keypoints[::2] *= scale_x  # Scale x-coordinates
+        keypoints[1::2] *= scale_y  # Scale y-coordinates
+        padding_width_hm  = int( padding_width * scale_x)
+        padding_height_hm = int( padding_height * scale_y)
 
         # Normalize image
         transformed_image = F.to_tensor(transformed_image)
         transformed_image = F.normalize(transformed_image, mean=[0.5] * 3, std=[0.5] * 3)
 
-        # print(f'transformed_image size: {transformed_image.size()}')
-        # print(f'transformed_image aspect ratio: {transformed_image.size(1) / transformed_image.size(2)}')
-        # print(f'output aspect ratio: {self.output_size[0] / self.output_size[1]}')
-        # print(f'mean: {transformed_image.mean()}')
-        # print(f'std: {transformed_image.std()}')
-        # print(f'min: {transformed_image.min()}')
-        # print(f'max: {transformed_image.max()}')
+        # plt.figure()
+        # plt.imshow(transformed_image.permute(1, 2, 0))
+        # plt.title('2')
+        # plt.show()
+
+        # plt.figure()
+        # plt.imshow(transformed_image.permute(1, 2, 0))
+        # plt.show()
 
         # ----------------------------------
         # ------- Generate heatmaps --------
         # ----------------------------------
-        if not self.infer:
-            heatmaps = []
-            keypoints = keypoints.view(-1, 2)
-            for keypoint in keypoints:
-                heatmap = generate_heatmap(transformed_image, keypoint, 
-                                            padding_width=padding_width_hm,
-                                            padding_height=padding_height_hm,
-                                            heatmap_size=(64, 48), sigma=0.8)
-                heatmaps.append(heatmap)
+        heatmaps = []
+        keypoints = keypoints.view(-1, 2)
+        for keypoint in keypoints:
+            heatmap = generate_heatmap(transformed_image, keypoint, 
+                                       padding_width=padding_width_hm,
+                                       padding_height=padding_height_hm,
+                                       heatmap_size=self.heatmap_size, sigma=0.8)
+            heatmaps.append(heatmap)
 
-            heatmaps = torch.stack(heatmaps)
+        heatmaps = torch.stack(heatmaps)
 
-        return transformed_image, keypoints, heatmaps, original_image, not_normalized_image
+        return transformed_image, keypoints, heatmaps
 
 def generate_heatmap(image, keypoint, padding_width, padding_height, heatmap_size=(64, 48), sigma=1):
     """
@@ -247,33 +241,36 @@ def generate_heatmap(image, keypoint, padding_width, padding_height, heatmap_siz
         heatmap[:, :padding_width]   = 0  # Left padding
         heatmap[:, -padding_width:]  = 0  # Right padding
 
+    # heatmap += 1e-10
+
     # Normalize heatmap to range [0, 1]
-    heatmap /= heatmap.max()
+    if heatmap.max() != 0:
+        heatmap /= heatmap.max()
 
     # Convert to tensor
     return torch.tensor(heatmap, dtype=torch.float32)
 
 if __name__ == "__main__":
     # Set paths
-    image_folder = "data/dataset"
-    label_file = "data/dataset/labels.csv"
+    image_folder = r"datasets\topv11\images"
+    label_file = r"datasets\topv11\annotations.csv"
 
     # Create dataset and data loader
     dataset = PoseDataset(image_folder=image_folder,
-                            label_file=label_file, 
-                            output_size=(256, 192))
+                          label_file=label_file, 
+                          resize_to=(256, 192))
     data_loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=0)
 
     # Iterate through the data loader
     # selec a random integer between 0 and dataset length
     index = random.randint(0, len(dataset))
-    for i, (images, heatmaps) in enumerate(data_loader):
+    for i, (images, gt_kps, gt_hms) in enumerate(data_loader):
         if i % 5 == 0:  # Show every 10th batch
             image = images[0]
-            heatmaps = heatmaps[0]
+            gt_hms = gt_hms[0]
 
-            overlap_hm = heatmaps[0]
-            for hm in heatmaps[1:]:
+            overlap_hm = gt_hms[0]
+            for hm in gt_hms[1:]:
                 try:
                     overlap_hm = torch.maximum(overlap_hm, hm)        
                 except Exception as e: 

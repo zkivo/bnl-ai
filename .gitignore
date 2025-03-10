@@ -1,5 +1,7 @@
 # custom
 data
+datasets
+config
 .DS_Store
 bin
 share
