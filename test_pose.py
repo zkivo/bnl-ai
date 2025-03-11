@@ -9,10 +9,10 @@ import platform
 import multiprocessing
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-from hrnet_w32_256 import get_pose_net, PoseHighResolutionNet
 import torch.nn.functional as F
 from PoseDataset import PoseDataset
 import hrnet
+import resnet
 from torchvision.transforms.functional import resize
 import os
 from datetime import datetime
@@ -76,7 +76,7 @@ def test_pose(model, image_test_folder, annotation_path, input_size, output_size
             keypoints_with_confidence.append(((x, y), confidence))
         return keypoints_with_confidence
 
-    confidence = 0.3
+    confidence = 0
     with torch.no_grad():
         test_loss = 0.0
         num_batches = 0
@@ -139,16 +139,43 @@ def test_pose(model, image_test_folder, annotation_path, input_size, output_size
         print(pck)
 
 if __name__ == '__main__':
-    image_test_folder  = r'C:\Users\Lund University\git\bnl-ai\datasets\side_374280\test'
-    annotation_path    = r'C:\Users\Lund University\git\bnl-ai\datasets\side_374280\annotations.csv'
+    image_test_folder  = r'datasets\topV12\test'
+    annotation_path    = r'datasets\topV12\annotations.csv'
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    with open(r'config\hrnet_w48_384_288.yaml', 'r') as f:
-            cfg_w48_384_288 = yaml.load(f, Loader=yaml.SafeLoader)
-            cfg_w48_384_288['MODEL']['NUM_JOINTS'] = 26
-            model = hrnet.get_pose_net(cfg_w48_384_288)
-            model.load_state_dict(torch.load(r'out\train-250307_154813\snapshot_best.pth', weights_only=True, map_location=torch.device('cpu')))
+    with open(r'config\hrnet_w32_256_192.yaml', 'r') as f:
+            cfg_w32_256_192 = yaml.load(f, Loader=yaml.SafeLoader)
+            cfg_w32_256_192['MODEL']['NUM_JOINTS'] = 14
+            model = hrnet.get_pose_net(cfg_w32_256_192)
+            model.load_state_dict(torch.load(r'out\train-250311_140202\snapshot_best.pth', weights_only=True, map_location=torch.device('cpu')))
             test_pose(model, image_test_folder, annotation_path, 
-                      input_size=cfg_w48_384_288['MODEL']['IMAGE_SIZE'],
-                      output_size=cfg_w48_384_288['MODEL']['HEATMAP_SIZE'])
+                      input_size=cfg_w32_256_192['MODEL']['IMAGE_SIZE'],
+                      output_size=cfg_w32_256_192['MODEL']['HEATMAP_SIZE'])
+
+    # with open(r'config\hrnet_w48_384_288.yaml', 'r') as f:
+    #         cfg_w48_384_288 = yaml.load(f, Loader=yaml.SafeLoader)
+    #         cfg_w48_384_288['MODEL']['NUM_JOINTS'] = 14
+    #         model = hrnet.get_pose_net(cfg_w48_384_288)
+    #         model.load_state_dict(torch.load(r'out\train-250307_154813\snapshot_best.pth', weights_only=True, map_location=torch.device('cpu')))
+    #         test_pose(model, image_test_folder, annotation_path, 
+    #                   input_size=cfg_w48_384_288['MODEL']['IMAGE_SIZE'],
+    #                   output_size=cfg_w48_384_288['MODEL']['HEATMAP_SIZE'])
+    
+    # with open(r'config\res50_256x192_d256x3_adam_lr1e-3.yaml', 'r') as f:
+    #     cfg_res50_256x192 = yaml.load(f, Loader=yaml.SafeLoader)
+    #     cfg_res50_256x192['MODEL']['NUM_JOINTS'] = 14
+    #     model = resnet.get_pose_net(cfg_res50_256x192, is_train=False)
+    #     model.load_state_dict(torch.load(r'out\train-250311_125712\snapshot_best.pth', weights_only=True, map_location=torch.device('cpu')))
+    #     test_pose(model, image_test_folder, annotation_path, 
+    #                 input_size=cfg_res50_256x192['MODEL']['IMAGE_SIZE'],
+    #                 output_size=cfg_res50_256x192['MODEL']['HEATMAP_SIZE'])
+    
+    # with open(r'config\res152_256x192_d256x3_adam_lr1e-3.yaml', 'r') as f:
+    #     cfg_res152_256x192 = yaml.load(f, Loader=yaml.SafeLoader)
+    #     cfg_res152_256x192['MODEL']['NUM_JOINTS'] = 14
+    #     model = resnet.get_pose_net(cfg_res152_256x192, is_train=False)
+    #     model.load_state_dict(torch.load(r'out\train-250311_134138\snapshot_best.pth', weights_only=True, map_location=torch.device('cpu')))
+    #     test_pose(model, image_test_folder, annotation_path, 
+    #                 input_size=cfg_res152_256x192['MODEL']['IMAGE_SIZE'],
+    #                 output_size=cfg_res152_256x192['MODEL']['HEATMAP_SIZE'])

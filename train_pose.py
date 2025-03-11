@@ -92,7 +92,7 @@ def train_pose(model, image_train_folder, image_test_folder,
             train_loss += loss.item()
             loss.backward()
             optimizer.step()
-            print(f'[{(batch_idx + 1) * train_batch_size} / {len(train_dataset)}]: loss: {loss.item()}')
+            # print(f'[{(batch_idx + 1) * train_batch_size} / {len(train_dataset)}]: loss: {loss.item()}')
         train_loss /= num_batches
         
         model.eval()
@@ -104,7 +104,7 @@ def train_pose(model, image_train_folder, image_test_folder,
             prediction = model(images)
             loss = criterion(prediction, gt_hms)
             test_loss += loss.item()
-            print(f'{batch_idx}: loss: {loss.item()}')
+            # print(f'{batch_idx}: loss: {loss.item()}')
         test_loss /= num_batches
         overall_time = time.time() - start_time
 
@@ -132,16 +132,16 @@ def top():
     image_test_folder  = r'datasets\topV12\test'
     annotation_path    = r'datasets\topV12\annotations.csv'
 
-    # with open(r'config\hrnet_w32_256_192.yaml', 'r') as f:
-    #     cfg_w32_256_192 = yaml.load(f, Loader=yaml.SafeLoader)
-    #     cfg_w32_256_192['MODEL']['NUM_JOINTS'] = 14
-    #     model = hrnet.get_pose_net(cfg_w32_256_192)
-    #     train_pose(model, image_train_folder, 
-    #                image_test_folder, annotation_path, 
-    #                input_size=cfg_w32_256_192['MODEL']['IMAGE_SIZE'],
-    #                output_size=cfg_w32_256_192['MODEL']['HEATMAP_SIZE'],
-    #                n_joints=cfg_w32_256_192['MODEL']['NUM_JOINTS'],
-    #                train_rotate=True)
+    with open(r'config\hrnet_w32_256_192.yaml', 'r') as f:
+        cfg_w32_256_192 = yaml.load(f, Loader=yaml.SafeLoader)
+        cfg_w32_256_192['MODEL']['NUM_JOINTS'] = 14
+        model = hrnet.get_pose_net(cfg_w32_256_192)
+        train_pose(model, image_train_folder, 
+                   image_test_folder, annotation_path, 
+                   input_size=cfg_w32_256_192['MODEL']['IMAGE_SIZE'],
+                   output_size=cfg_w32_256_192['MODEL']['HEATMAP_SIZE'],
+                   n_joints=cfg_w32_256_192['MODEL']['NUM_JOINTS'],
+                   train_rotate=True)
 
     # with open(r'config\hrnet_w32_384_288.yaml', 'r') as f:
     #     cfg_w32_384_288 = yaml.load(f, Loader=yaml.SafeLoader)
@@ -176,16 +176,27 @@ def top():
     #                n_joints=cfg_w48_384_288['MODEL']['NUM_JOINTS'],
     #                train_rotate=True)
     
-    with open(r'config\res50_256x192_d256x3_adam_lr1e-3.yaml', 'r') as f:
-        cfg_res50_256x192 = yaml.load(f, Loader=yaml.SafeLoader)
-        cfg_res50_256x192['MODEL']['NUM_JOINTS'] = 14
-        model = resnet.get_pose_net(cfg_res50_256x192, is_train=True)
-        train_pose(model, image_train_folder, 
-                   image_test_folder, annotation_path, 
-                   input_size=cfg_res50_256x192['MODEL']['IMAGE_SIZE'],
-                   output_size=cfg_res50_256x192['MODEL']['HEATMAP_SIZE'],
-                   n_joints=cfg_res50_256x192['MODEL']['NUM_JOINTS'],
-                   train_rotate=True)
+    # with open(r'config\res50_256x192_d256x3_adam_lr1e-3.yaml', 'r') as f:
+    #     cfg_res50_256x192 = yaml.load(f, Loader=yaml.SafeLoader)
+    #     cfg_res50_256x192['MODEL']['NUM_JOINTS'] = 14
+    #     model = resnet.get_pose_net(cfg_res50_256x192, is_train=True)
+    #     train_pose(model, image_train_folder, 
+    #                image_test_folder, annotation_path, 
+    #                input_size=cfg_res50_256x192['MODEL']['IMAGE_SIZE'],
+    #                output_size=cfg_res50_256x192['MODEL']['HEATMAP_SIZE'],
+    #                n_joints=cfg_res50_256x192['MODEL']['NUM_JOINTS'],
+    #                train_rotate=True)
+        
+    # with open(r'config\res152_256x192_d256x3_adam_lr1e-3.yaml', 'r') as f:
+    #     cfg_res152_256x192 = yaml.load(f, Loader=yaml.SafeLoader)
+    #     cfg_res152_256x192['MODEL']['NUM_JOINTS'] = 14
+    #     model = resnet.get_pose_net(cfg_res152_256x192, is_train=True)
+    #     train_pose(model, image_train_folder, 
+    #                image_test_folder, annotation_path, 
+    #                input_size=cfg_res152_256x192['MODEL']['IMAGE_SIZE'],
+    #                output_size=cfg_res152_256x192['MODEL']['HEATMAP_SIZE'],
+    #                n_joints=cfg_res152_256x192['MODEL']['NUM_JOINTS'],
+    #                train_rotate=True)
 
 def side():
     image_train_folder = r'C:\Users\Lund University\git\bnl-ai\datasets\side_374280\train'
