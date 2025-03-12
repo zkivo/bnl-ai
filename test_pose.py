@@ -22,10 +22,7 @@ def test_pose(model, image_test_folder, annotation_path, input_size, output_size
     if platform.system() == "Darwin":  # "Darwin" is the name for macOS
         multiprocessing.set_start_method("fork", force=True)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    print(f'Torch version: {torch.__version__}')
-    print(f'Torch device: {device}')
+    model.eval()
 
     output_folder = f'out/test-{datetime.now().strftime("%y%m%d_%H%M%S")}'
     image_folder = os.path.join(output_folder, 'images')
@@ -83,7 +80,11 @@ def test_pose(model, image_test_folder, annotation_path, input_size, output_size
         pck = []
         for batch_idx, (images, gt_keypoints, gt_hms) in enumerate(dataloader):
             num_batches += 1
+            images = images.to(device)
+            start = time.time()
             predictions = model(images)
+            end = time.time()
+            print(f"Batch {batch_idx} took {end - start:.4f} seconds")
             image = images.squeeze(0)
             gt_keypoints = gt_keypoints.squeeze(0)
             gt_hms = gt_hms.squeeze(0)
@@ -95,9 +96,9 @@ def test_pose(model, image_test_folder, annotation_path, input_size, output_size
             # image_np = image.cpu().numpy().transpose(1, 2, 0)  # Convert CHW to HWC
 
             # Denormalize the image
-            mean = torch.tensor([0.5, 0.5, 0.5]).view(3, 1, 1)
-            std = torch.tensor([0.5, 0.5, 0.5]).view(3, 1, 1)
-            denormalized_image = image * std + mean  # Reverse normalization
+            mean = torch.tensor([0.5, 0.5, 0.5]).view(3, 1, 1).to(device)
+            std = torch.tensor([0.5, 0.5, 0.5]).view(3, 1, 1).to(device)
+            denormalized_image = (image * std + mean).to('cpu')  # Reverse normalization
             denormalized_image = denormalized_image.clamp(0, 1)  # Ensure valid range
             denormalized_image = (denormalized_image * 255).byte().numpy()  # Convert to 0-255 range
 
@@ -144,11 +145,15 @@ if __name__ == '__main__':
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    print(f'Torch version: {torch.__version__}')
+    print(f'Torch device: {device}')
+
     with open(r'config\hrnet_w32_256_192.yaml', 'r') as f:
             cfg_w32_256_192 = yaml.load(f, Loader=yaml.SafeLoader)
             cfg_w32_256_192['MODEL']['NUM_JOINTS'] = 14
-            model = hrnet.get_pose_net(cfg_w32_256_192)
-            model.load_state_dict(torch.load(r'out\train-250311_140202\snapshot_best.pth', weights_only=True, map_location=torch.device('cpu')))
+            model = hrnet.get_pose_net(cfg_w32_256_192, is_train=False)
+            model = model.to(device)
+            model.load_state_dict(torch.load(r'out\train-250311_140202\snapshot_best.pth', weights_only=True, map_location=device))
             test_pose(model, image_test_folder, annotation_path, 
                       input_size=cfg_w32_256_192['MODEL']['IMAGE_SIZE'],
                       output_size=cfg_w32_256_192['MODEL']['HEATMAP_SIZE'])

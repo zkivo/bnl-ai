@@ -4,7 +4,9 @@ datasets
 .DS_Store
 bin
 share
+yolo11?.pt
 pyvenv.cfg
+runs
 out
 
 # Byte-compiled / optimized / DLL files

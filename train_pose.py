@@ -51,7 +51,7 @@ def train_pose(model, image_train_folder, image_test_folder,
     train_dataloader = DataLoader(train_dataset, batch_size=train_batch_size, num_workers=2, shuffle=True)
     test_dataloader  = DataLoader(test_dataset,  batch_size=test_batch_size,  num_workers=2, shuffle=False)
 
-    model.to(device)
+    model = model.to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
