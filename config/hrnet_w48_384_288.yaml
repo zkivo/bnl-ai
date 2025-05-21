@@ -2,7 +2,7 @@ MODEL:
   INIT_WEIGHTS: true
   NAME: pose_hrnet
   NUM_JOINTS: 17
-  PRETRAINED: 'data\hrnet_w48-8ef0771d.pth'
+  PRETRAINED: 'marco\data\hrnet_w48-8ef0771d.pth'
   TARGET_TYPE: gaussian
   IMAGE_SIZE:
   - 288

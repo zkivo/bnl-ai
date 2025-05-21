@@ -1,0 +1,2 @@
+pip install pyyaml numpy pandas matplotlib alive-progress opencv-python ultralytics pillow scikit-learn termcolor
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118

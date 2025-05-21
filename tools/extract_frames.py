@@ -8,6 +8,7 @@ import numpy as np
 import random
 import pandas as pd
 import matplotlib.pyplot as plt
+from random import randrange
 from sklearn.cluster import KMeans
 from termcolor import colored
 from pathlib import Path
@@ -157,8 +158,9 @@ def pca_analysis(original_matrix, show_visuals=True):
 def contours_extraction(video_paths, 
                         output_folder,
                         n_clusters=50, 
-                        n_train_background=200, 
-                        show_visuals=True):
+                        n_train_background=2000, 
+                        show_visuals=True,
+                        random_background=True):
     """
     Extracts contours from multiple videos and applies 
     K-Means clustering to select representative frames.
@@ -201,13 +203,14 @@ def contours_extraction(video_paths,
     print(f"Starting training background frames...")
     for frame_idx in range(n_train_background):
         for cap, back_sub in zip(caps, background_subtractors):
+            if random_background:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, randrange(int(cap.get(cv2.CAP_PROP_FRAME_COUNT))))
             ret, frame = cap.read()
             if not ret:
                 continue
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             back_sub.apply(gray_frame)  # Update the background model
             if frame_idx % 10 == 0:
-
                 if show_visuals:
                     frames.append(back_sub.getBackgroundImage())
         if frame_idx % 10 == 0:
@@ -231,8 +234,8 @@ def contours_extraction(video_paths,
     end_video = False
     frame_idx = 0
     while not end_video:
-        if frame_idx > 300:
-            break
+        # if frame_idx > 300:
+        #     break
         combined_features = []
         if frame_idx % 30 == 0:
             print(f"frame: {frame_idx}", end="\r", flush=True)
@@ -247,6 +250,7 @@ def contours_extraction(video_paths,
 
             # Apply dilation to make the foreground mask larger
             kernel = np.ones((3, 3), np.uint8)
+            fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
             dilated_fg_mask = cv2.dilate(fg_mask, kernel, iterations=3)
 
             # Find contours of the foreground (mouse)
@@ -348,16 +352,16 @@ def contours_extraction(video_paths,
     print(f"Extracted frames saved in {output_folder}")
 
 
-def uniform_extraction(video_paths, output_dir, n_frames, random = True):
+def uniform_extraction(video_paths, output_dir, n_frames, uniform = True):
     """
     Extracts n_frames from each video in video_paths with a uniform 
-    random distribution or linearly spaced (if random = false).
+    random distribution or linearly spaced (if uniform = false).
 
     Args:
         video_paths (list): List of paths to video files.
         output_dir (str): Directory where extracted frames will be saved.
         n_frames (int): Number of frames to extract from each video.
-        random (bool): Whether to sample frames randomly or linearly.
+        uniform (bool): Whether to sample frames randomly or linearly.
     """
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -378,7 +382,8 @@ def uniform_extraction(video_paths, output_dir, n_frames, random = True):
         cap.release()
 
     # Uniformly sample `n_frames` frame indices
-    if random:
+    
+    if uniform:
         frame_indices = sorted(random.sample(range(total_frames), n_frames))
     else:
         frame_indices = np.linspace(0, total_frames - 1, n_frames, dtype=int)
@@ -567,7 +572,7 @@ def extract_frames(video_list, output_dir, method, n_frames, time_interval, grou
             uniform_extraction(group, output_dir, n_frames)
         elif method == "linear":
             if n_frames is not None:
-                uniform_extraction(group, output_dir, n_frames, random=False)
+                uniform_extraction(group, output_dir, n_frames, uniform=False)
             else:
                 for video_path in group:
                     linear_extraction(video_path, output_dir, time_interval)

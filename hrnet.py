@@ -270,6 +270,7 @@ blocks_dict = {
 class PoseHighResolutionNet(nn.Module):
 
     def __init__(self, cfg, **kwargs):
+        self.name = 'PoseHRNet-W{}'.format(cfg['MODEL']['EXTRA']['STAGE2']['NUM_CHANNELS'][0])
         self.inplanes = 64
         extra = cfg['MODEL']['EXTRA']
         super(PoseHighResolutionNet, self).__init__()

@@ -15,12 +15,16 @@ def list_filenames(folder_path):
 
 if __name__ == '__main__':
     # Load a model
-    model = YOLO(r"runs\detect\first\weights\best.pt")  # pretrained YOLO11n model
+    model = YOLO(r"trained_models\detection_Top_1k_300epochs\weights\best.pt")  # pretrained YOLO11n model
 
-    filenames = list_filenames(r'datasets\top_detection_v1\images\val')
+    # filenames = list_filenames(r'datasets\top_detection_v1\images\val')
+    video_filename = r"C:\Users\marco\Desktop\20250315-151340-413969_2.mkv"
+
+    model.predict(video_filename, show=True, save=True)
+    exit()
 
     # Run batched inference on a list of images
-    results = model(filenames)  # return a list of Results objects
+    results = model(video_filename, stream=True)  # return a list of Results objects
 
     # Process results list
     for result in results:

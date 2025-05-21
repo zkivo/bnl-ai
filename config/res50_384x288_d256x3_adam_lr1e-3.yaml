@@ -1,7 +1,7 @@
 MODEL:
   INIT_WEIGHTS: true
   NAME: 'pose_resnet'
-  PRETRAINED: 'data\resnet50-19c8e357.pth'
+  PRETRAINED: 'marco\data\resnet50-19c8e357.pth'
   IMAGE_SIZE:
   - 288
   - 384

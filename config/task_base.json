@@ -1,0 +1,129 @@
+{
+    "name": "",
+    "bug_tracker": "",
+    "status": "annotation",
+    "subset": "",
+    "labels": [
+        {
+            "name": "TopSkeleton",
+            "color": "#0bf116",
+            "attributes": [],
+            "type": "skeleton",
+            "sublabels": [
+                {
+                    "name": "nose",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "ears_midpoint",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "back_withers",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "back_midpoint",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "back_croup",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "tail_base",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "tail_upper_midpont",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "tail_midpoint",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "tail_lower_midpont",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "tail_end",
+                    "color": "#66ff66",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "right_ear_base",
+                    "color": "#fa3253",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "right_ear_tip",
+                    "color": "#fa3253",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "left_ear_base",
+                    "color": "#33ddff",
+                    "attributes": [],
+                    "type": "points"
+                },
+                {
+                    "name": "left_ear_tip",
+                    "color": "#33ddff",
+                    "attributes": [],
+                    "type": "points"
+                }
+            ],
+            "svg": "<line x1=\"47.26950454711914\" y1=\"15.839864730834961\" x2=\"51.45016860961914\" y2=\"16.007091522216797\" data-type=\"edge\" data-node-from=\"2\" data-node-to=\"11\"></line>\n<line x1=\"42.92161178588867\" y1=\"15.839864730834961\" x2=\"47.26950454711914\" y2=\"15.839864730834961\" data-type=\"edge\" data-node-from=\"13\" data-node-to=\"2\"></line>\n<line x1=\"42.92161178588867\" y1=\"15.839864730834961\" x2=\"39.74430847167969\" y2=\"21.023887634277344\" data-type=\"edge\" data-node-from=\"13\" data-node-to=\"14\"></line>\n<line x1=\"47.26950454711914\" y1=\"9.318028450012207\" x2=\"42.92161178588867\" y2=\"15.839864730834961\" data-type=\"edge\" data-node-from=\"1\" data-node-to=\"13\"></line>\n<line x1=\"51.45016860961914\" y1=\"16.007091522216797\" x2=\"54.29301834106445\" y2=\"20.52220916748047\" data-type=\"edge\" data-node-from=\"11\" data-node-to=\"12\"></line>\n<line x1=\"47.26950454711914\" y1=\"9.318028450012207\" x2=\"51.45016860961914\" y2=\"16.007091522216797\" data-type=\"edge\" data-node-from=\"1\" data-node-to=\"11\"></line>\n<line x1=\"47.436729431152344\" y1=\"53.13138961791992\" x2=\"47.26950454711914\" y2=\"58.81709289550781\" data-type=\"edge\" data-node-from=\"9\" data-node-to=\"10\"></line>\n<line x1=\"47.436729431152344\" y1=\"48.28181838989258\" x2=\"47.436729431152344\" y2=\"53.13138961791992\" data-type=\"edge\" data-node-from=\"8\" data-node-to=\"9\"></line>\n<line x1=\"47.26950454711914\" y1=\"42.261661529541016\" x2=\"47.436729431152344\" y2=\"48.28181838989258\" data-type=\"edge\" data-node-from=\"7\" data-node-to=\"8\"></line>\n<line x1=\"47.26950454711914\" y1=\"37.41209030151367\" x2=\"47.26950454711914\" y2=\"42.261661529541016\" data-type=\"edge\" data-node-from=\"6\" data-node-to=\"7\"></line>\n<line x1=\"47.26950454711914\" y1=\"31.391935348510742\" x2=\"47.26950454711914\" y2=\"37.41209030151367\" data-type=\"edge\" data-node-from=\"5\" data-node-to=\"6\"></line>\n<line x1=\"47.436729431152344\" y1=\"26.375139236450195\" x2=\"47.26950454711914\" y2=\"31.391935348510742\" data-type=\"edge\" data-node-from=\"4\" data-node-to=\"5\"></line>\n<line x1=\"47.10227584838867\" y1=\"21.19111442565918\" x2=\"47.436729431152344\" y2=\"26.375139236450195\" data-type=\"edge\" data-node-from=\"3\" data-node-to=\"4\"></line>\n<line x1=\"47.26950454711914\" y1=\"15.839864730834961\" x2=\"47.10227584838867\" y2=\"21.19111442565918\" data-type=\"edge\" data-node-from=\"2\" data-node-to=\"3\"></line>\n<line x1=\"47.26950454711914\" y1=\"9.318028450012207\" x2=\"47.26950454711914\" y2=\"15.839864730834961\" data-type=\"edge\" data-node-from=\"1\" data-node-to=\"2\"></line>\n<circle r=\"0.75\" cx=\"47.26950454711914\" cy=\"9.318028450012207\" data-type=\"element node\" data-element-id=\"1\" data-node-id=\"1\" data-label-name=\"nose\"></circle>\n<circle r=\"0.75\" cx=\"47.26950454711914\" cy=\"15.839864730834961\" data-type=\"element node\" data-element-id=\"2\" data-node-id=\"2\" data-label-name=\"ears_midpoint\"></circle>\n<circle r=\"0.75\" cx=\"47.10227584838867\" cy=\"21.19111442565918\" data-type=\"element node\" data-element-id=\"3\" data-node-id=\"3\" data-label-name=\"back_withers\"></circle>\n<circle r=\"0.75\" cx=\"47.436729431152344\" cy=\"26.375139236450195\" data-type=\"element node\" data-element-id=\"4\" data-node-id=\"4\" data-label-name=\"back_midpoint\"></circle>\n<circle r=\"0.75\" cx=\"47.26950454711914\" cy=\"31.391935348510742\" data-type=\"element node\" data-element-id=\"5\" data-node-id=\"5\" data-label-name=\"back_croup\"></circle>\n<circle r=\"0.75\" cx=\"47.26950454711914\" cy=\"37.41209030151367\" data-type=\"element node\" data-element-id=\"6\" data-node-id=\"6\" data-label-name=\"tail_base\"></circle>\n<circle r=\"0.75\" cx=\"47.26950454711914\" cy=\"42.261661529541016\" data-type=\"element node\" data-element-id=\"7\" data-node-id=\"7\" data-label-name=\"tail_upper_midpont\"></circle>\n<circle r=\"0.75\" cx=\"47.436729431152344\" cy=\"48.28181838989258\" data-type=\"element node\" data-element-id=\"8\" data-node-id=\"8\" data-label-name=\"tail_midpoint\"></circle>\n<circle r=\"0.75\" cx=\"47.436729431152344\" cy=\"53.13138961791992\" data-type=\"element node\" data-element-id=\"9\" data-node-id=\"9\" data-label-name=\"tail_lower_midpont\"></circle>\n<circle r=\"0.75\" cx=\"47.26950454711914\" cy=\"58.81709289550781\" data-type=\"element node\" data-element-id=\"10\" data-node-id=\"10\" data-label-name=\"tail_end\"></circle>\n<circle r=\"0.75\" cx=\"51.45016860961914\" cy=\"16.007091522216797\" data-type=\"element node\" data-element-id=\"11\" data-node-id=\"11\" data-label-name=\"right_ear_base\"></circle>\n<circle r=\"0.75\" cx=\"54.29301834106445\" cy=\"20.52220916748047\" data-type=\"element node\" data-element-id=\"12\" data-node-id=\"12\" data-label-name=\"right_ear_tip\"></circle>\n<circle r=\"0.75\" cx=\"42.92161178588867\" cy=\"15.839864730834961\" data-type=\"element node\" data-element-id=\"13\" data-node-id=\"13\" data-label-name=\"left_ear_base\"></circle>\n<circle r=\"0.75\" cx=\"39.74430847167969\" cy=\"21.023887634277344\" data-type=\"element node\" data-element-id=\"14\" data-node-id=\"14\" data-label-name=\"left_ear_tip\"></circle>"
+        },
+        {
+            "name": "Mouse",
+            "color": "#fafa37",
+            "attributes": [],
+            "type": "rectangle",
+            "sublabels": []
+        }
+    ],
+    "version": "1.0",
+    "data": {
+        "chunk_size": 32,
+        "image_quality": 70,
+        "start_frame": 0,
+        "stop_frame": 24,
+        "storage_method": "cache",
+        "storage": "local",
+        "sorting_method": "lexicographical",
+        "chunk_type": "imageset",
+        "deleted_frames": []
+    },
+    "jobs": [
+        {
+            "start_frame": 0,
+            "stop_frame": 24,
+            "frames": [],
+            "status": "annotation",
+            "type": "annotation"
+        }
+    ]
+}

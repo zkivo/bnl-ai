@@ -103,6 +103,7 @@ class Bottleneck(nn.Module):
 class PoseResNet(nn.Module):
 
     def __init__(self, block, layers, cfg, **kwargs):
+        self.name = 'PoseResNet-{}'.format(cfg.MODEL.EXTRA.NUM_LAYERS)
         self.inplanes = 64
         extra = cfg.MODEL.EXTRA
         self.deconv_with_bias = extra.DECONV_WITH_BIAS
