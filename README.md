@@ -1,9 +1,10 @@
 # bnl-ai
 Tools and AI software for the Behavioural Neuroscience Laboratory.
 
-![test_images_epoch_12 (1)](https://github.com/user-attachments/assets/feb6353b-e7e6-487e-867e-6eefedbf4fde)
+The video below shows the keypoint predictions of body parts using HRNet. First, we predict the bounding boxes using YOLOv11, and then we predict the body part coordinates using HRNet. Next, we calculate the body angle and plot it on the side.
 
-![5](https://github.com/user-attachments/assets/ac0899a4-5817-4e2c-9f6d-9e906e17b817)
+https://github.com/user-attachments/assets/b983264f-6121-4cea-bcec-9a3c00894cc5
+
 
 ## Fix MKV files
 Usually the recordings are corrupted. The timestaps are *not monotonically increasing*. This causes errors in the
