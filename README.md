@@ -3,6 +3,10 @@ Tools and AI software for the Behavioural Neuroscience Laboratory.
 
 The video below shows the keypoint predictions of body parts using HRNet. First, we predict the bounding boxes using YOLOv11, and then we predict the body part coordinates using HRNet. Next, we calculate the body angle and plot it on the side.
 
+
+https://github.com/user-attachments/assets/365653b4-6760-405e-a097-10dcadcb2b80
+
+
 https://github.com/user-attachments/assets/b983264f-6121-4cea-bcec-9a3c00894cc5
 
 
